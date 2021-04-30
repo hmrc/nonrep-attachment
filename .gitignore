@@ -27,3 +27,5 @@ tmp
 bin/
 docker/
 terraform/
+*.crt
+*.pem
