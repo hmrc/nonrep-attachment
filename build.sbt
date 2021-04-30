@@ -59,8 +59,8 @@ lazy val root = (project in file(".")).
 
     ),
 
-    assemblyJarName in assembly := s"$projectName.jar",
-    assemblyMergeStrategy in assembly := {
+    assembly / assemblyJarName := s"$projectName.jar",
+    assembly / assemblyMergeStrategy := {
       case PathList("META-INF", "MANIFEST.MF") => MergeStrategy.discard
       case PathList("META-INF", "BCKEY.DSA") => MergeStrategy.discard
       case "reference.conf" => MergeStrategy.concat
@@ -69,7 +69,7 @@ lazy val root = (project in file(".")).
 
   )
 
-scalacOptions ++= Seq("-deprecation", "-feature")
-testOptions / Test += Tests.Argument("-oF")
-fork / Test := true
-envVars / Test := Map("WORKING_DIR" -> "/tmp/unit-tests")
+Compile / scalacOptions ++= Seq("-deprecation", "-feature")
+Test / testOptions += Tests.Argument("-oF")
+Test / fork := true
+Test / envVars := Map("WORKING_DIR" -> "/tmp/unit-tests")
