@@ -70,6 +70,6 @@ lazy val root = (project in file(".")).
   )
 
 scalacOptions ++= Seq("-deprecation", "-feature")
-testOptions in Test += Tests.Argument("-oF")
-fork in Test := true
-envVars in Test := Map("WORKING_DIR" -> "/tmp/unit-tests")
+testOptions / Test += Tests.Argument("-oF")
+fork / Test := true
+envVars / Test := Map("WORKING_DIR" -> "/tmp/unit-tests")
