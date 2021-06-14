@@ -139,8 +139,6 @@ class ServiceIntSpec extends AnyWordSpec with Matchers with ScalatestRouteTest w
             "# TYPE process_start_time_seconds gauge",
             "# TYPE process_open_fds gauge",
             "# TYPE process_max_fds gauge",
-            "# TYPE process_virtual_memory_bytes gauge",
-            "# TYPE process_resident_memory_bytes gauge",
             "# TYPE jvm_info gauge"
           )
         }
