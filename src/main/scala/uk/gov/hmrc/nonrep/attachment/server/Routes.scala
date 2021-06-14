@@ -8,8 +8,10 @@ import akka.http.scaladsl.model.{HttpResponse, StatusCodes}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.directives.MethodDirectives.get
 import akka.http.scaladsl.server.{ExceptionHandler, Route}
-import fr.davit.akka.http.metrics.core.scaladsl.server.HttpMetricsDirectives.pathLabeled
+import fr.davit.akka.http.metrics.core.scaladsl.server.HttpMetricsDirectives.{pathLabeled, _}
+import fr.davit.akka.http.metrics.prometheus.marshalling.PrometheusMarshallers._
 import uk.gov.hmrc.nonrep.BuildInfo
+import uk.gov.hmrc.nonrep.attachment.metrics.Prometheus._
 import uk.gov.hmrc.nonrep.attachment.utils.JsonFormats._
 
 object Routes {
@@ -26,7 +28,6 @@ class Routes()(implicit val system: ActorSystem[_],
       complete(HttpResponse(InternalServerError, entity = "Internal NRS attachments API error"))
     }
   }
-
 
   lazy val serviceRoutes: Route =
     handleExceptions(exceptionHandler) {
@@ -45,6 +46,10 @@ class Routes()(implicit val system: ActorSystem[_],
       } ~ pathLabeled("ping") {
         get {
           complete(HttpResponse(StatusCodes.OK, entity = "pong"))
+        }
+      } ~ pathLabeled("metrics") {
+        get {
+          metrics(registry)
         }
       }
     }
