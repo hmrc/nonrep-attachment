@@ -8,12 +8,11 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import org.scalatest.Inside
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.time.{Millis, Span}
-import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
-import uk.gov.hmrc.nonrep.attachment.utils.JsonFormats._
+import org.scalatest.wordspec.AnyWordSpec
 import uk.gov.hmrc.nonrep.BuildInfo
 import uk.gov.hmrc.nonrep.attachment.server.{NonrepMicroservice, Routes, ServiceConfig}
+import uk.gov.hmrc.nonrep.attachment.utils.JsonFormats._
 
 import scala.concurrent.Future
 
