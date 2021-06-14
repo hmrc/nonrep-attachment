@@ -17,6 +17,7 @@ import uk.gov.hmrc.nonrep.attachment.utils.JsonFormats._
 import scala.concurrent.Future
 
 class ServiceIntSpec extends AnyWordSpec with Matchers with ScalatestRouteTest with ScalaFutures with Inside {
+
   import TestServices._
 
   var server: NonrepMicroservice = null
@@ -113,15 +114,12 @@ class ServiceIntSpec extends AnyWordSpec with Matchers with ScalatestRouteTest w
             "# TYPE jvm_threads_new_count gauge",
             "# TYPE jvm_memory_non_heap_init gauge",
             "# TYPE jvm_memory_total_max gauge",
-            "# TYPE jvm_memory_pools_CodeHeap__non_nmethods__usage gauge",
-            "# TYPE jvm_memory_pools_CodeHeap__profiled_nmethods__usage gauge",
             "# TYPE jvm_threads_runnable_count gauge",
             "# TYPE jvm_threads_terminated_count gauge",
             "# TYPE jvm_memory_heap_max gauge",
             "# TYPE jvm_memory_non_heap_max gauge",
             "# TYPE jvm_memory_total_init gauge",
             "# TYPE jvm_threads_daemon_count gauge",
-            "# TYPE jvm_memory_pools_CodeHeap__non_profiled_nmethods__usage gauge",
             "# TYPE jvm_threads_blocked_count gauge",
             "# TYPE jvm_buffer_pool_used_bytes gauge",
             "# TYPE jvm_buffer_pool_capacity_bytes gauge",
