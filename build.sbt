@@ -4,8 +4,9 @@ enablePlugins(BuildInfoPlugin)
 val akkaHttpVersion = "10.2.4"
 val akkaVersion = "2.6.14"
 val logbackVersion = "1.2.3"
-val metricsVersion = "1.3.0"
-val prometheusClientsVersion = "0.9.0"
+val metricsVersion = "1.6.0"
+val jvmMetricsVersion = "3.0.2"
+val prometheusClientsVersion = "0.11.0"
 
 val projectName = "attachment"
 
@@ -47,6 +48,7 @@ lazy val root = (project in file(".")).
       "org.slf4j"            %  "slf4j-api"                    % "1.7.30",
       "net.logstash.logback" %  "logstash-logback-encoder"     % "6.1",
       "fr.davit"             %% "akka-http-metrics-prometheus" % metricsVersion,
+      "com.codahale.metrics" %  "metrics-jvm"                  % jvmMetricsVersion,
       "io.prometheus"        %  "simpleclient_common"          % prometheusClientsVersion,
       "io.prometheus"        %  "simpleclient_dropwizard"      % prometheusClientsVersion,
       "io.prometheus"        %  "simpleclient_hotspot"         % prometheusClientsVersion,
