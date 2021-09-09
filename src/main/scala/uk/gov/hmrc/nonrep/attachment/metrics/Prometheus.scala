@@ -10,19 +10,19 @@ import uk.gov.hmrc.nonrep.attachment.server.Main.config
 
 object Prometheus {
 
-  val prometheus = CollectorRegistry.defaultRegistry
+  private val prometheus = CollectorRegistry.defaultRegistry
 
-  val settings = PrometheusSettings.default.
-    withNamespace(config.appName).
-    withIncludePathDimension(true).
-    withIncludeMethodDimension(true).
-    withIncludeStatusDimension(true).
-    withDurationConfig(Buckets(.1, .2, .3, .5, .8, 1, 1.5, 2, 2.5, 3, 5, 8, 13, 21)).
-    withReceivedBytesConfig(Quantiles(0.5, 0.75, 0.9, 0.95, 0.99)).
-    withSentBytesConfig(PrometheusSettings.DefaultQuantiles).
-    withDefineError(_.status.isFailure)
+  private val settings = PrometheusSettings.default
+    .withNamespace(config.appName)
+    .withIncludePathDimension(true)
+    .withIncludeMethodDimension(true)
+    .withIncludeStatusDimension(true)
+    .withDurationConfig(Buckets(.1, .2, .3, .5, .8, 1, 1.5, 2, 2.5, 3, 5, 8, 13, 21))
+    .withReceivedBytesConfig(Quantiles(0.5, 0.75, 0.9, 0.95, 0.99))
+    .withSentBytesConfig(PrometheusSettings.DefaultQuantiles)
+    .withDefineError(_.status.isFailure)
 
-  val registry = {
+  val registry: PrometheusRegistry = {
     DefaultExports.initialize()
     val registry = SharedMetricRegistries.getOrCreate(config.appName)
     registry.register("jvm.attribute", new JvmAttributeGaugeSet())

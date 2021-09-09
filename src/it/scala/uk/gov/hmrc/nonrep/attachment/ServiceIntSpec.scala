@@ -1,6 +1,7 @@
 package uk.gov.hmrc.nonrep.attachment
 
 import akka.actor.testkit.typed.scaladsl.ActorTestKit
+import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.adapter._
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse, StatusCodes}
@@ -20,27 +21,25 @@ class ServiceIntSpec extends AnyWordSpec with Matchers with ScalatestRouteTest w
 
   import TestServices._
 
-  var server: NonrepMicroservice = null
-  implicit val config: ServiceConfig = new ServiceConfig(servicePort = 9000)
-  val hostUrl = s"http://localhost:${config.port}"
-  val service = config.appName
+  private lazy val service: NonrepMicroservice = NonrepMicroservice(Routes())
+  private implicit val config: ServiceConfig = new ServiceConfig(servicePort = 9000)
+  private val hostUrl = s"http://localhost:${config.port}"
 
-  lazy val testKit = ActorTestKit()
-  implicit val typedSystem = testKit.system
+  private lazy val testKit = ActorTestKit()
+  private implicit val typedSystem: ActorSystem[Nothing] = testKit.system
 
   override def createActorSystem(): akka.actor.ActorSystem = testKit.system.toClassic
 
   implicit val patience: PatienceConfig = PatienceConfig(Span(5000, Millis), Span(100, Millis))
 
-  override def beforeAll() = {
-    server = NonrepMicroservice(Routes())
-  }
+  private def initializeService(): Unit = service
 
-  override def afterAll(): Unit = {
-    whenReady(server.serverBinding) {
+  override def beforeAll(): Unit = initializeService()
+
+  override def afterAll(): Unit =
+    whenReady(service.serverBinding) {
       _.unbind()
     }
-  }
 
   "attachment service service" should {
 

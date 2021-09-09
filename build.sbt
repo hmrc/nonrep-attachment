@@ -17,7 +17,7 @@ createVersionFile := {
   Files.write(Paths.get("version.txt"), version.value.getBytes(StandardCharsets.UTF_8))
 }
 
-lazy val IntegrationTest = config("it") extend(Test)
+lazy val IntegrationTest = config("it") extend Test
 
 lazy val root = (project in file(".")).
   configs(IntegrationTest).
@@ -26,7 +26,7 @@ lazy val root = (project in file(".")).
     inThisBuild(List(
       organization := "uk.gov",
       git.useGitDescribe := true,
-      scalaVersion := "2.13.5"
+      scalaVersion := "2.13.6"
     )),
     buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion),
     buildInfoPackage := "uk.gov.hmrc.nonrep",

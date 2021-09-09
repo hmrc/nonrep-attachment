@@ -1,18 +1,18 @@
 package uk.gov.hmrc.nonrep.attachment
 
 import akka.actor.testkit.typed.scaladsl.ActorTestKit
+import akka.actor.typed.ActorSystem
 import akka.http.scaladsl.model.ResponseEntity
 import akka.util.ByteString
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 object TestServices {
+  lazy val testKit: ActorTestKit = ActorTestKit()
 
-  lazy val testKit = ActorTestKit()
+  def entityToString(entity: ResponseEntity)(implicit ec: ExecutionContext): Future[String] = {
+    implicit val typedSystem: ActorSystem[Nothing] = testKit.system
 
-  implicit def typedSystem = testKit.system
-
-  def entityToString(entity: ResponseEntity)(implicit ec: ExecutionContext) =
     entity.dataBytes.runFold(ByteString(""))(_ ++ _).map(_.utf8String)
-
+  }
 }
