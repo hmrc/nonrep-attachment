@@ -62,5 +62,17 @@ class RoutesSpec extends AnyWordSpec with ScalaFutures with ScalatestRouteTest {
       }
     }
 
+    "return 202 code for valid attachment request" in {
+
+    }
+
+    "return 400 code for invalid attachment request" in {
+
+    }
+
+    "return 401 code for unauthorised attachment request" in {
+
+    }
+
   }
 }
