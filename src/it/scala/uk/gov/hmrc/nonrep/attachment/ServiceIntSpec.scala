@@ -96,7 +96,7 @@ class ServiceIntSpec extends BaseSpec with ScalatestRouteTest with ScalaFutures 
     }
 
     "return 400 status code for POST request to /attachment with lack of attachments data in meta-store" in {
-      
+
     }
 
     "return jvm metrics" in {

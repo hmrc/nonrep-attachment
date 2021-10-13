@@ -10,7 +10,6 @@ object AttachmentFlow {
 
 class AttachmentFlow() {
 
-
   val validation: Flow[AttachmentRequest, EitherErr[AttachmentRequest], NotUsed] = Flow[AttachmentRequest].map {
     Right(_)
   }

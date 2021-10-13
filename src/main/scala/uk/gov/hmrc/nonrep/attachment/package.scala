@@ -20,4 +20,8 @@ package object attachment {
                                attachmentContentType: String,
                                nrSubmissionId: String)
 
+  case class SubmissionMetadata(nrSubmissionId: String,
+                                attachmentIds: Option[List[String]] = None
+                               )
+
 }
