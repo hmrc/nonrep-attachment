@@ -80,7 +80,7 @@ class ServiceIntSpec extends BaseSpec with ScalatestRouteTest with ScalaFutures 
       }
     }
 
-    "return 202 status code for POST  request to /attachment endpoint" in {
+    "return 202 status code for POST request to /attachment endpoint" in {
       val attachmentId = UUID.randomUUID().toString
       val request = HttpRequest(POST, uri = s"$hostUrl/attachment")
         .withEntity(`application/json`, validAttachmentRequest(attachmentId))
@@ -93,6 +93,10 @@ class ServiceIntSpec extends BaseSpec with ScalatestRouteTest with ScalaFutures 
           body shouldBe attachmentId
         }
       }
+    }
+
+    "return 400 status code for POST request to /attachment with lack of attachments data in meta-store" in {
+      
     }
 
     "return jvm metrics" in {

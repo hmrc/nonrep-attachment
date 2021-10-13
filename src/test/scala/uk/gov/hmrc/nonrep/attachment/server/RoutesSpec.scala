@@ -79,12 +79,15 @@ class RoutesSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
       }
     }
 
-    "return 5xx code for invalid attachment request" in {
+    "return 5xx code for malformed attachment request" in {
       val attachmentRequest = invalidAttachmentRequest
       val request = Post("/attachment").withEntity(`application/json`, attachmentRequest).withHeaders(apiKeyHeader)
       request ~> routes.serviceRoutes ~> check {
         status shouldBe InternalServerError
       }
+    }
+
+    "return 400 code for invalid attachment request (doesn't have corresponding data in meta-store)" in {
 
     }
   }
