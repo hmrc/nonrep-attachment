@@ -4,6 +4,7 @@ package server
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.Behaviors
 import akka.http.scaladsl.Http
+import uk.gov.hmrc.nonrep.attachment.stream.AttachmentFlow
 
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
@@ -42,7 +43,7 @@ object Main {
 
   def main(args: Array[String]): Unit = {
     val rootBehavior = Behaviors.setup[Nothing] { context =>
-      val routes = Routes()(context.system, implicitly)
+      val routes = Routes(AttachmentFlow())(context.system, implicitly)
 
       NonrepMicroservice(routes)(context.system, config)
 

@@ -1,27 +1,32 @@
 package uk.gov.hmrc.nonrep.attachment
 
+import java.util.UUID
+
 import akka.actor.testkit.typed.scaladsl.ActorTestKit
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.adapter._
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.{HttpRequest, HttpResponse, StatusCodes}
+import akka.http.scaladsl.model.HttpMethods.POST
+import akka.http.scaladsl.model.{HttpMethods, HttpRequest, HttpResponse, StatusCodes}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import org.scalatest.Inside
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{Millis, Span}
-import org.scalatest.wordspec.AnyWordSpec
+import akka.http.scaladsl.model.ContentTypes.`application/json`
+import akka.http.scaladsl.model.headers.RawHeader
 import uk.gov.hmrc.nonrep.BuildInfo
 import uk.gov.hmrc.nonrep.attachment.server.{NonrepMicroservice, Routes, ServiceConfig}
+import uk.gov.hmrc.nonrep.attachment.stream.AttachmentFlow
 import uk.gov.hmrc.nonrep.attachment.utils.JsonFormats._
 
 import scala.concurrent.Future
 
-class ServiceIntSpec extends AnyWordSpec with Matchers with ScalatestRouteTest with ScalaFutures with Inside {
+class ServiceIntSpec extends BaseSpec with ScalatestRouteTest with ScalaFutures with Inside {
 
   import TestServices._
 
-  private lazy val service: NonrepMicroservice = NonrepMicroservice(Routes())
+  private lazy val service: NonrepMicroservice = NonrepMicroservice(Routes(AttachmentFlow()))
   private implicit val config: ServiceConfig = new ServiceConfig(servicePort = 9000)
   private val hostUrl = s"http://localhost:${config.port}"
 
@@ -40,6 +45,8 @@ class ServiceIntSpec extends AnyWordSpec with Matchers with ScalatestRouteTest w
     whenReady(service.serverBinding) {
       _.unbind()
     }
+
+  private val apiKeyHeader = RawHeader("x-api-Key", "validKey")
 
   "attachment service service" should {
 
@@ -69,6 +76,21 @@ class ServiceIntSpec extends AnyWordSpec with Matchers with ScalatestRouteTest w
         res.status shouldBe StatusCodes.OK
         whenReady(entityToString(res.entity)) { body =>
           body shouldBe "pong"
+        }
+      }
+    }
+
+    "return 202 status code for POST  request to /attachment endpoint" in {
+      val attachmentId = UUID.randomUUID().toString
+      val request = HttpRequest(POST, uri = s"$hostUrl/attachment")
+        .withEntity(`application/json`, validAttachmentRequest(attachmentId))
+        .withHeaders(apiKeyHeader)
+
+      val responseFuture: Future[HttpResponse] = Http().singleRequest(request)
+      whenReady(responseFuture) { res =>
+        res.status shouldBe StatusCodes.Accepted
+        whenReady(entityToString(res.entity)) { body =>
+          body shouldBe attachmentId
         }
       }
     }
