@@ -7,6 +7,8 @@ val logbackVersion = "1.2.3"
 val metricsVersion = "1.6.0"
 val jvmMetricsVersion = "3.0.2"
 val prometheusClientsVersion = "0.11.0"
+val awsSdkVersion = "2.16.+"
+val circeVersion = "0.14.+"
 
 val projectName = "attachment"
 
@@ -52,12 +54,18 @@ lazy val root = (project in file(".")).
       "io.prometheus"        %  "simpleclient_common"          % prometheusClientsVersion,
       "io.prometheus"        %  "simpleclient_dropwizard"      % prometheusClientsVersion,
       "io.prometheus"        %  "simpleclient_hotspot"         % prometheusClientsVersion,
+      "io.circe"             %% "circe-generic"                % circeVersion,
+      "io.circe"             %% "circe-optics"                 % circeVersion,
 
       "com.typesafe.akka"    %% "akka-http-testkit"        % akkaHttpVersion % Test,
       "com.typesafe.akka"    %% "akka-actor-testkit-typed" % akkaVersion     % Test,
       "com.typesafe.akka"    %% "akka-stream-testkit"      % akkaVersion     % Test,
       "org.scalatest"        %% "scalatest"                % "3.2.7"         % Test,
       "org.scalamock"        %% "scalamock"                % "4.3.0"         % Test,
+
+      //AWS
+      "software.amazon.awssdk" % "s3" % awsSdkVersion,
+      "software.amazon.awssdk" % "sqs" % awsSdkVersion,
 
     ),
 
