@@ -4,13 +4,11 @@ package service
 import java.io.ByteArrayInputStream
 import java.net.URI
 
-import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.HttpEntity.LastChunk.data
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.RawHeader
-import akka.stream.scaladsl.{Flow, Source}
+import akka.stream.scaladsl.Flow
 import org.apache.http.client.utils.URIBuilder
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider
 import software.amazon.awssdk.auth.signer.{Aws4Signer, AwsSignerExecutionAttribute}
