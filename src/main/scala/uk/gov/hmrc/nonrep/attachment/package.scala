@@ -4,6 +4,10 @@ import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 
 package object attachment {
 
+  type NrSubmissionId = String
+  type BusinessId = String
+  type AttachmentId = String
+  type ApiKey = String
   type EitherErr[T] = Either[ErrorMessage, T]
 
   case class BuildVersion(version: String) extends AnyVal
@@ -21,7 +25,6 @@ package object attachment {
                                nrSubmissionId: String)
 
   case class SubmissionMetadata(nrSubmissionId: String,
-                                attachmentIds: Option[List[String]] = None
-                               )
+                                attachmentIds: Option[List[String]] = None)
 
 }
