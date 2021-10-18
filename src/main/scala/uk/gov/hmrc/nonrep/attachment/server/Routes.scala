@@ -72,6 +72,7 @@ class Routes(flow: AttachmentFlow)(implicit val system: ActorSystem[_], config: 
                     case Failure(x) =>
                       log.error(s"Internal NRS error, caused by ${x.getCause}", x)
                       complete(HttpResponse(InternalServerError))
+
                   }
                 }
               }

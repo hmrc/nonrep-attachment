@@ -7,6 +7,7 @@ val logbackVersion = "1.2.3"
 val metricsVersion = "1.6.0"
 val jvmMetricsVersion = "3.0.2"
 val prometheusClientsVersion = "0.11.0"
+val awsSdkVersion = "2.17.+"
 
 val projectName = "attachment"
 
@@ -38,20 +39,21 @@ lazy val root = (project in file(".")).
     ),
 
     libraryDependencies ++= Seq(
-      "com.typesafe.akka"    %% "akka-http"                    % akkaHttpVersion,
-      "com.typesafe.akka"    %% "akka-http-spray-json"         % akkaHttpVersion,
-      "com.typesafe.akka"    %% "akka-actor-typed"             % akkaVersion,
-      "com.typesafe.akka"    %% "akka-stream"                  % akkaVersion,
-      "ch.qos.logback"       %  "logback-classic"              % logbackVersion,
-      "ch.qos.logback"       %  "logback-core"                 % logbackVersion,
-      "com.typesafe.akka"    %% "akka-slf4j"                   % akkaVersion,
-      "org.slf4j"            %  "slf4j-api"                    % "1.7.30",
-      "net.logstash.logback" %  "logstash-logback-encoder"     % "6.1",
-      "fr.davit"             %% "akka-http-metrics-prometheus" % metricsVersion,
-      "com.codahale.metrics" %  "metrics-jvm"                  % jvmMetricsVersion,
-      "io.prometheus"        %  "simpleclient_common"          % prometheusClientsVersion,
-      "io.prometheus"        %  "simpleclient_dropwizard"      % prometheusClientsVersion,
-      "io.prometheus"        %  "simpleclient_hotspot"         % prometheusClientsVersion,
+      "com.typesafe.akka"      %% "akka-http"                    % akkaHttpVersion,
+      "com.typesafe.akka"      %% "akka-http-spray-json"         % akkaHttpVersion,
+      "com.typesafe.akka"      %% "akka-actor-typed"             % akkaVersion,
+      "com.typesafe.akka"      %% "akka-stream"                  % akkaVersion,
+      "ch.qos.logback"         %  "logback-classic"              % logbackVersion,
+      "ch.qos.logback"         %  "logback-core"                 % logbackVersion,
+      "com.typesafe.akka"      %% "akka-slf4j"                   % akkaVersion,
+      "org.slf4j"              %  "slf4j-api"                    % "1.7.30",
+      "net.logstash.logback"   %  "logstash-logback-encoder"     % "6.1",
+      "fr.davit"               %% "akka-http-metrics-prometheus" % metricsVersion,
+      "com.codahale.metrics"   %  "metrics-jvm"                  % jvmMetricsVersion,
+      "io.prometheus"          %  "simpleclient_common"          % prometheusClientsVersion,
+      "io.prometheus"          %  "simpleclient_dropwizard"      % prometheusClientsVersion,
+      "io.prometheus"          %  "simpleclient_hotspot"         % prometheusClientsVersion,
+      "software.amazon.awssdk" %  "auth"                         % awsSdkVersion,
 
       "com.typesafe.akka"    %% "akka-http-testkit"        % akkaHttpVersion % Test,
       "com.typesafe.akka"    %% "akka-actor-testkit-typed" % akkaVersion     % Test,
