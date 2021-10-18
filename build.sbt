@@ -8,6 +8,7 @@ val metricsVersion = "1.6.0"
 val jvmMetricsVersion = "3.0.2"
 val prometheusClientsVersion = "0.11.0"
 val awsSdkVersion = "2.17.+"
+val circeVersion = "0.14.+"
 
 val projectName = "attachment"
 
@@ -53,6 +54,8 @@ lazy val root = (project in file(".")).
       "io.prometheus"             %  "simpleclient_common"          % prometheusClientsVersion,
       "io.prometheus"             %  "simpleclient_dropwizard"      % prometheusClientsVersion,
       "io.prometheus"             %  "simpleclient_hotspot"         % prometheusClientsVersion,
+      "io.circe"             %% "circe-generic"                % circeVersion,
+      "io.circe"             %% "circe-optics"                 % circeVersion,
       "software.amazon.awssdk"    %  "auth"                         % awsSdkVersion,
       "org.apache.httpcomponents" % "httpclient"                    % "4.5.13",
 

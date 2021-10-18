@@ -2,7 +2,7 @@ package uk.gov.hmrc.nonrep.attachment.models
 
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import akka.stream.StreamRefMessages.Payload
-
+import io.circe.Json
 import uk.gov.hmrc.nonrep.attachment.{ApiKey, AttachmentId, BusinessId, NrSubmissionId}
 
 case class IncomingRequest(apiKey: ApiKey, payload: Payload)
