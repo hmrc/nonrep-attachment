@@ -3,7 +3,11 @@ package server
 
 import java.net.URI
 
+import akka.stream.TLSRole.client
 import com.typesafe.config.{Config, ConfigFactory}
+import uk.gov.hmrc.nonrep.attachment.models.AttachmentRequest
+
+import scala.Predef.->
 
 class ServiceConfig(val servicePort: Int = 8000) {
 
@@ -26,5 +30,6 @@ class ServiceConfig(val servicePort: Int = 8000) {
 
   private val clientsConfig: Config = config.getConfig(s"$projectName-$appName.clients-config")
 
-  val notableEvents: Map[ApiKey, Set[String]] = Map()
+  val notableEvents: Map[ApiKey, Set[String]] = Map(clientsConfig => client.ApiKey -> client)
+
 }

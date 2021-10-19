@@ -19,5 +19,8 @@ class IndexingSpec extends BaseSpec with ScalaFutures {
 
     }
 
+    "create http request" in {
+
+    }
   }
 }

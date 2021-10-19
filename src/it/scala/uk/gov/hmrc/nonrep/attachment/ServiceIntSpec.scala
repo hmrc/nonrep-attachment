@@ -14,7 +14,7 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import org.scalatest.Inside
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Millis, Span}
-import shapeless.BuildInfo
+import uk.gov.hmrc.nonrep.BuildInfo
 import uk.gov.hmrc.nonrep.attachment.server.{NonrepMicroservice, Routes, ServiceConfig}
 import uk.gov.hmrc.nonrep.attachment.stream.AttachmentFlow
 import uk.gov.hmrc.nonrep.attachment.utils.JsonFormats._
@@ -93,9 +93,19 @@ class ServiceIntSpec extends BaseSpec with ScalatestRouteTest with ScalaFutures 
         }
       }
     }
-
+    //to improve this test - idea is to write one that shows a failed request when using an invalidAttachment request
     "return 400 status code for POST request to /attachment with lack of attachments data in meta-store" in {
+      val attachmentId = UUID.randomUUID().toString
+      val request = HttpRequest(POST, uri = s"$hostUrl/attachment")
+//        .withEntity(`application/json`, invalidAttachmentRequest(attachmentId))
 
+      val responseFuture: Future[HttpResponse] = Http().singleRequest(request)
+      whenReady(responseFuture) { res =>
+        res.status shouldBe StatusCodes.BadRequest
+        whenReady(entityToString(res.entity)) { body =>
+          body shouldBe attachmentId
+        }
+      }
     }
 
     "return jvm metrics" in {
