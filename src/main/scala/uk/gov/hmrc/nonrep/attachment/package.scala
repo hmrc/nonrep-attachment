@@ -4,9 +4,7 @@ import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 
 package object attachment {
 
-  type NrSubmissionId = String
-  type BusinessId = String
-  type AttachmentId = String
+  type Id = String
   type ApiKey = String
   type EitherErr[T] = Either[ErrorMessage, T]
 
@@ -17,14 +15,5 @@ package object attachment {
   object ErrorMessage {
     def apply(message: String, code: Int): ErrorMessage = ErrorMessage(message, StatusCode.int2StatusCode(code))
   }
-
-  case class AttachmentRequest(attachmentUrl: String,
-                               attachmentId: String,
-                               payloadSha256Checksum: String,
-                               attachmentContentType: String,
-                               nrSubmissionId: String)
-
-  case class SubmissionMetadata(nrSubmissionId: String,
-                                attachmentIds: Option[List[String]] = None)
 
 }

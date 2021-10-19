@@ -8,12 +8,11 @@ class IndexingSpec extends BaseSpec with ScalaFutures {
   "For attachment api index service" should {
 
     "verify ES build path" in {
-      Indexing.buildPath(Set("vat-registration"), SubmissionMetadata("")) shouldBe
+      Indexing.buildPath(Set("vat-registration")) shouldBe
         "/vat-registration-attachments/"
-      Indexing.buildPath(Set("itsa-eops", "itsa-annual-adjustments", "itsa-crystallisation"), SubmissionMetadata(""))shouldBe
+      //for any future attachments support
+      Indexing.buildPath(Set("itsa-eops", "itsa-annual-adjustments", "itsa-crystallisation"))shouldBe
         "/itsa-eops-attachments,itsa-annual-adjustments-attachments,itsa-crystallisation-attachments/"
-      Indexing.buildPath(Set("entry-declaration"), SubmissionMetadata("")) shouldBe
-        "/entry-declaration-attachments/"
     }
 
     "execute ES read query" in {

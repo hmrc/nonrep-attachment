@@ -18,5 +18,8 @@ class ServiceConfigSpec extends AnyWordSpec with Matchers {
     "be able to use default service port" in {
       config.port shouldBe config.servicePort
     }
+    "build config object for notable events" in {
+
+    }
   }
 }

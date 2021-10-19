@@ -54,8 +54,6 @@ lazy val root = (project in file(".")).
       "io.prometheus"             %  "simpleclient_common"          % prometheusClientsVersion,
       "io.prometheus"             %  "simpleclient_dropwizard"      % prometheusClientsVersion,
       "io.prometheus"             %  "simpleclient_hotspot"         % prometheusClientsVersion,
-      "io.circe"             %% "circe-generic"                % circeVersion,
-      "io.circe"             %% "circe-optics"                 % circeVersion,
       "software.amazon.awssdk"    %  "auth"                         % awsSdkVersion,
       "org.apache.httpcomponents" % "httpclient"                    % "4.5.13",
 

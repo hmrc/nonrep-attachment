@@ -15,8 +15,9 @@ import software.amazon.awssdk.auth.signer.{Aws4Signer, AwsSignerExecutionAttribu
 import software.amazon.awssdk.core.interceptor.ExecutionAttributes
 import software.amazon.awssdk.http.{SdkHttpFullRequest, SdkHttpMethod}
 import software.amazon.awssdk.regions.Region
+import uk.gov.hmrc.nonrep.attachment.models.AttachmentRequestKey
 import uk.gov.hmrc.nonrep.attachment.server.ServiceConfig
-
+import akka.http.scaladsl.model.ContentTypes.{`application/json`}
 import scala.util.Try
 
 trait Indexing[A] {
@@ -41,21 +42,29 @@ object Indexing {
 
   }
 
-  implicit val defaultIndexing: Indexing[SubmissionMetadata] = new Indexing[SubmissionMetadata]() {
+  implicit val defaultIndexing: Indexing[AttachmentRequestKey] = new Indexing[AttachmentRequestKey]() {
 
     override def flow()(implicit system: ActorSystem, config: ServiceConfig):
-    Flow[(HttpRequest, EitherErr[SubmissionMetadata]), (Try[HttpResponse], EitherErr[SubmissionMetadata]), Http.HostConnectionPool] =
+    Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Http.HostConnectionPool] =
       if (config.isElasticSearchProtocolSecure)
-        Http().cachedHostConnectionPoolHttps[EitherErr[SubmissionMetadata]](config.elasticSearchHost)
+        Http().cachedHostConnectionPoolHttps[EitherErr[AttachmentRequestKey]](config.elasticSearchHost)
       else
-        Http().cachedHostConnectionPool[EitherErr[SubmissionMetadata]](config.elasticSearchHost)
+        Http().cachedHostConnectionPool[EitherErr[AttachmentRequestKey]](config.elasticSearchHost)
 
-    override def query(data: EitherErr[SubmissionMetadata])(implicit config: ServiceConfig): HttpRequest = ???
+    override def query(data: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig): HttpRequest = {
+      data.toOption.map {
+        request => {
+          val path = buildPath(config.notableEvents(request.apiKey))
+          val body = ""
+          createSignedRequest(HttpMethods.POST, config.elasticSearchUri, path, body)
+        }
+      }.getOrElse(HttpRequest())
+    }
   }
 
   private lazy val signer = Aws4Signer.create()
 
-  private[service] def buildPath(notableEvent: Set[String], submission: SubmissionMetadata) = s"/${notableEvent.map(_.concat("-attachments")).mkString(",")}/"
+  private[service] def buildPath(notableEvent: Set[String]) = s"/${notableEvent.map(_.concat("-attachments")).mkString(",")}/"
 
   private[service] def createSignedRequest(method: HttpMethod, uri: URI, path: String, body: String): HttpRequest = {
 

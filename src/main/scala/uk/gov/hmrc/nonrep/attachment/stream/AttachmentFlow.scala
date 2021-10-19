@@ -3,6 +3,7 @@ package stream
 
 import akka.NotUsed
 import akka.stream.scaladsl.Flow
+import uk.gov.hmrc.nonrep.attachment.models.{AttachmentRequest, AttachmentRequestKey}
 
 object AttachmentFlow {
   def apply() = new AttachmentFlow()
@@ -10,7 +11,7 @@ object AttachmentFlow {
 
 class AttachmentFlow() {
 
-  val validation: Flow[AttachmentRequest, EitherErr[AttachmentRequest], NotUsed] = Flow[AttachmentRequest].map {
+  val validation: Flow[AttachmentRequestKey, EitherErr[AttachmentRequestKey], NotUsed] = Flow[AttachmentRequestKey].map {
     Right(_)
   }
 
