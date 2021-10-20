@@ -52,7 +52,7 @@ class Routes(flow: AttachmentFlow)(implicit val system: ActorSystem[_], config: 
                     .log(name = "attachmentFlow")
                     .addAttributes(logLevels(onElement = Off, onFinish = Info, onFailure = Error))
                     .map(AttachmentRequestKey(apiKey, _))
-                    .via(flow.validation)
+                    .via(flow.validationFlow)
                     .toMat(Sink.head)(Keep.right)
                     .run()
 
@@ -65,7 +65,7 @@ class Routes(flow: AttachmentFlow)(implicit val system: ActorSystem[_], config: 
                         },
                         res => {
                           complete {
-                            HttpResponse(Accepted, entity = HttpEntity(res.request.attachmentId))
+                            HttpResponse(Accepted, entity = HttpEntity(res.attachmentId))
                           }
                         }
                       )

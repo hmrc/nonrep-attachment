@@ -33,7 +33,7 @@ object TestServices {
       override def flow()(implicit system: ActorSystem[_], config: ServiceConfig)
       : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] =
         Flow[(HttpRequest, EitherErr[AttachmentRequestKey])].map {
-          case (_, request) => (Try(HttpResponse(StatusCodes.Created)), request)
+          case (_, request) => (Try(HttpResponse(StatusCodes.OK)), request)
         }
     }
 
