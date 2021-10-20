@@ -4,7 +4,7 @@ package service
 import java.io.ByteArrayInputStream
 import java.net.URI
 
-import akka.actor.ActorSystem
+import akka.actor.typed.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.RawHeader
@@ -22,7 +22,7 @@ import scala.util.Try
 trait Indexing[A] {
   def query(data: EitherErr[A])(implicit config: ServiceConfig): HttpRequest
 
-  def flow()(implicit system: ActorSystem, config: ServiceConfig)
+  def flow()(implicit system: ActorSystem[_], config: ServiceConfig)
   : Flow[(HttpRequest, EitherErr[A]), (Try[HttpResponse], EitherErr[A]), Any]
 }
 
@@ -34,7 +34,7 @@ object Indexing {
     implicit class IndexingOps[A: Indexing](value: EitherErr[A]) {
       def query()(implicit config: ServiceConfig): HttpRequest = Indexing[A].query(value)
 
-      def flow()(implicit system: ActorSystem, config: ServiceConfig)
+      def flow()(implicit system: ActorSystem[_], config: ServiceConfig)
       : Flow[(HttpRequest, EitherErr[A]), (Try[HttpResponse], EitherErr[A]), Any] =
         Indexing[A].flow()
     }
@@ -43,7 +43,7 @@ object Indexing {
 
   implicit val defaultQueryForAttachments: Indexing[AttachmentRequestKey] = new Indexing[AttachmentRequestKey]() {
 
-    override def flow()(implicit system: ActorSystem, config: ServiceConfig):
+    override def flow()(implicit system: ActorSystem[_], config: ServiceConfig):
     Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Http.HostConnectionPool] =
       if (config.isElasticSearchProtocolSecure)
         Http().cachedHostConnectionPoolHttps[EitherErr[AttachmentRequestKey]](config.elasticSearchHost)

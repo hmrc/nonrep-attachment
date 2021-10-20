@@ -43,7 +43,9 @@ object Main {
 
   def main(args: Array[String]): Unit = {
     val rootBehavior = Behaviors.setup[Nothing] { context =>
-      val routes = Routes(AttachmentFlow())(context.system, implicitly)
+
+      val flow = AttachmentFlow()(context.system, implicitly, implicitly)
+      val routes = Routes(flow)(context.system, implicitly)
 
       NonrepMicroservice(routes)(context.system, config)
 
