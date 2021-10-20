@@ -3,11 +3,9 @@ package server
 
 import java.net.URI
 
-import akka.stream.TLSRole.client
 import com.typesafe.config.{Config, ConfigFactory}
-import uk.gov.hmrc.nonrep.attachment.models.AttachmentRequest
 
-import scala.Predef.->
+import scala.jdk.CollectionConverters._
 
 class ServiceConfig(val servicePort: Int = 8000) {
 
@@ -22,7 +20,7 @@ class ServiceConfig(val servicePort: Int = 8000) {
 
   private val configFile = new java.io.File(s"/etc/config/CONFIG_FILE")
 
-  val config = if(configFile.exists()) {
+  val config = if (configFile.exists()) {
     ConfigFactory.parseFile(configFile)
   } else {
     ConfigFactory.load("application.conf")
@@ -30,6 +28,7 @@ class ServiceConfig(val servicePort: Int = 8000) {
 
   private val clientsConfig: Config = config.getConfig(s"$projectName-$appName.clients-config")
 
-  val notableEvents: Map[ApiKey, Set[String]] = Map(clientsConfig => client.ApiKey -> client)
+  val businessIds: Set[String] = clientsConfig.root().keySet().asScala.toSet
+  val notableEvents: Map[ApiKey, Set[String]] = businessIds.map(c => (clientsConfig.getString(s"$c.apiKey"), clientsConfig.getStringList(s"$c.notableEvents").asScala.toSet)).toMap
 
 }

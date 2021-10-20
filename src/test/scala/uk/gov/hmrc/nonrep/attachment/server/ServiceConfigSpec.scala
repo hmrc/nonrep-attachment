@@ -19,7 +19,7 @@ class ServiceConfigSpec extends AnyWordSpec with Matchers {
       config.port shouldBe config.servicePort
     }
     "build config object for notable events" in {
-
+      config.notableEvents.isEmpty shouldBe false
     }
   }
 }

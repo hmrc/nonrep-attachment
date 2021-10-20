@@ -4,6 +4,7 @@ package stream
 import akka.NotUsed
 import akka.stream.scaladsl.Flow
 import uk.gov.hmrc.nonrep.attachment.models.{AttachmentRequest, AttachmentRequestKey}
+import uk.gov.hmrc.nonrep.attachment.service.Indexing
 
 object AttachmentFlow {
   def apply() = new AttachmentFlow()

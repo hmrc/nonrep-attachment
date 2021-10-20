@@ -15,4 +15,12 @@ object TestServices {
 
     entity.dataBytes.runFold(ByteString(""))(_ ++ _).map(_.utf8String)
   }
+
+  object success {
+
+  }
+
+  object failure {
+
+  }
 }

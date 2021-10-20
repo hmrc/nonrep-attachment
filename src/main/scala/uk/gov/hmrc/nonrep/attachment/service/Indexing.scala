@@ -17,7 +17,6 @@ import software.amazon.awssdk.http.{SdkHttpFullRequest, SdkHttpMethod}
 import software.amazon.awssdk.regions.Region
 import uk.gov.hmrc.nonrep.attachment.models.AttachmentRequestKey
 import uk.gov.hmrc.nonrep.attachment.server.ServiceConfig
-import akka.http.scaladsl.model.ContentTypes.{`application/json`}
 import scala.util.Try
 
 trait Indexing[A] {
@@ -42,7 +41,7 @@ object Indexing {
 
   }
 
-  implicit val defaultIndexing: Indexing[AttachmentRequestKey] = new Indexing[AttachmentRequestKey]() {
+  implicit val defaultQueryForAttachments: Indexing[AttachmentRequestKey] = new Indexing[AttachmentRequestKey]() {
 
     override def flow()(implicit system: ActorSystem, config: ServiceConfig):
     Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Http.HostConnectionPool] =
@@ -53,9 +52,9 @@ object Indexing {
 
     override def query(data: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig): HttpRequest = {
       data.toOption.map {
-        request => {
-          val path = buildPath(config.notableEvents(request.apiKey))
-          val body = ""
+        value => {
+          val path = buildPath(config.notableEvents(value.apiKey))
+          val body = s"""{"query": {"bool":{"must":[{"match":{"attachmentIds":"${value.request.attachmentId}"}},{"ids":{"values":"${value.request.nrSubmissionId}"}}]}}}"""
           createSignedRequest(HttpMethods.POST, config.elasticSearchUri, path, body)
         }
       }.getOrElse(HttpRequest())
@@ -64,7 +63,9 @@ object Indexing {
 
   private lazy val signer = Aws4Signer.create()
 
-  private[service] def buildPath(notableEvent: Set[String]) = s"/${notableEvent.map(_.concat("-attachments")).mkString(",")}/"
+  private[service] def buildPath(notableEvent: Set[String]) = s"/${notableEvent.map(_.concat("-attachments")).mkString(",")}/_search"
+
+  def createSignedRequest: HttpRequest => HttpRequest = ???
 
   private[service] def createSignedRequest(method: HttpMethod, uri: URI, path: String, body: String): HttpRequest = {
 
