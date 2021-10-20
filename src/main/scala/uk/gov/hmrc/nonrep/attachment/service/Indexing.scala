@@ -63,7 +63,7 @@ object Indexing {
 
   private lazy val signer = Aws4Signer.create()
 
-  private[service] def buildPath(notableEvent: Set[String]) = s"/${notableEvent.map(_.concat("-attachments")).mkString(",")}/_search"
+  def buildPath(notableEvent: Set[String]) = s"/${notableEvent.map(_.concat("-attachments")).mkString(",")}/_search"
 
   def createSignedRequest: HttpRequest => HttpRequest = ???
 

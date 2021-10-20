@@ -3,11 +3,14 @@ package service
 
 import java.util.UUID
 
+import akka.http.javadsl.model.HttpMethods
+import akka.http.scaladsl.testkit.ScalatestRouteTest
 import org.scalatest.concurrent.ScalaFutures
+import uk.gov.hmrc.nonrep.attachment.TestServices.entityToString
 import uk.gov.hmrc.nonrep.attachment.models.{AttachmentRequest, AttachmentRequestKey}
 import uk.gov.hmrc.nonrep.attachment.server.ServiceConfig
 
-class IndexingSpec extends BaseSpec with ScalaFutures {
+class IndexingSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
 
   private implicit val config: ServiceConfig = new ServiceConfig()
 
@@ -26,18 +29,21 @@ class IndexingSpec extends BaseSpec with ScalaFutures {
     }
 
     "create http request" in {
-      import TestServices._
       import Indexing.ops._
+      import TestServices.success._
 
       val attachmentId = UUID.randomUUID().toString
       val submissionId = UUID.randomUUID().toString
-      val req = AttachmentRequest("", attachmentId, "", "", "")
-      val areq: EitherErr[AttachmentRequestKey] = Right(AttachmentRequestKey("66975df1e55c4bb9c7dcb4313e5514c234f071b1199efd455695fefb3e54bbf2", req))
-      val hreq = areq.query()
+      val request = AttachmentRequest("", attachmentId, "", "", submissionId)
+      val attachmentRequest: EitherErr[AttachmentRequestKey] = Right(AttachmentRequestKey("66975df1e55c4bb9c7dcb4313e5514c234f071b1199efd455695fefb3e54bbf2", request))
+      val httpRequest = attachmentRequest.query()
 
-      //hreq - method POST
-      //path - vat-registration-attachments
-      //entity.body - query should include attachmentId and submissionId
+      httpRequest.method shouldBe HttpMethods.POST
+      httpRequest.uri.toString shouldBe "/vat-registration-attachments/_search"
+      whenReady(entityToString(httpRequest.entity)) { res =>
+        res should include (attachmentId)
+        res should include (submissionId)
+      }
     }
   }
 }
