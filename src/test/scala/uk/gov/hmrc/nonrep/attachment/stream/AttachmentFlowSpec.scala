@@ -5,6 +5,7 @@ package stream
 import akka.actor.typed.ActorSystem
 import akka.http.scaladsl.model.HttpResponse
 import akka.http.scaladsl.testkit.ScalatestRouteTest
+import akka.stream.impl.CancelledSubscription.request
 import akka.stream.scaladsl.Keep
 import akka.stream.testkit.scaladsl.{TestSink, TestSource}
 import uk.gov.hmrc.nonrep.attachment.TestServices.testKit
@@ -27,7 +28,7 @@ class AttachmentFlowSpec extends BaseSpec with ScalatestRouteTest {
       val sink = TestSink.probe[EitherErr[HttpResponse]]
       val (pub, sub) = source.via(flow.validation).via(flow.attachment).toMat(sink)(Keep.both).run()
       pub
-        .sendNext(AttachmentRequest(ApiKey, validAttachmentRequest))
+        .sendNext(AttachmentRequest(ApiKey, invalidAttachmentRequest))
         .sendComplete()
       sub
         .request(1)
