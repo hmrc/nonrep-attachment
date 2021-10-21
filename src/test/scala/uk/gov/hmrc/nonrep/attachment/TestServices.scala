@@ -8,12 +8,15 @@ import akka.util.ByteString
 import uk.gov.hmrc.nonrep.attachment.models.AttachmentRequestKey
 import uk.gov.hmrc.nonrep.attachment.server.ServiceConfig
 import uk.gov.hmrc.nonrep.attachment.service.Indexing
+import uk.gov.hmrc.nonrep.attachment.stream.AttachmentFlow
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
 object TestServices {
   lazy val testKit: ActorTestKit = ActorTestKit()
+  implicit def typedSystem = testKit.system
+  implicit val config: ServiceConfig = new ServiceConfig()
 
   def entityToString(entity: ResponseEntity)(implicit ec: ExecutionContext): Future[String] = {
     implicit val typedSystem: ActorSystem[Nothing] = testKit.system
@@ -36,11 +39,10 @@ object TestServices {
           case (_, request) => (Try(HttpResponse(StatusCodes.OK)), request)
         }
     }
-
-    object failure {
-
-    }
-
+    val flow: AttachmentFlow = new AttachmentFlow() {}
   }
 
+  object failure {
+
+  }
 }

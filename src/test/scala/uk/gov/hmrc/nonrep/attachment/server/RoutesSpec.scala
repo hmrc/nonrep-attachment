@@ -21,6 +21,8 @@ import scala.concurrent.duration._
 
 class RoutesSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
 
+  import TestServices.success._
+
   private lazy val testKit = ActorTestKit()
 
   private implicit def typedSystem: ActorSystem[Nothing] = testKit.system
@@ -29,11 +31,11 @@ class RoutesSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
 
   private implicit val timeout: RouteTestTimeout = RouteTestTimeout(10 second span)
 
-  private val apiKeyHeader = RawHeader("x-api-Key", "validKey")
+  private val apiKeyHeader = RawHeader("x-api-Key", "66975df1e55c4bb9c7dcb4313e5514c234f071b1199efd455695fefb3e54bbf2")
 
   private implicit val config: ServiceConfig = new ServiceConfig()
 
-  private val routes = new Routes(AttachmentFlow())
+  private val routes = new Routes(flow)
 
   "Service routes for attachment service" should {
 
