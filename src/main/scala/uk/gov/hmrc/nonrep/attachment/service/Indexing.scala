@@ -51,13 +51,16 @@ object Indexing {
         Http().cachedHostConnectionPool[EitherErr[AttachmentRequestKey]](config.elasticSearchHost)
 
     override def query(data: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig): HttpRequest = {
-      data.toOption.map {
-        value => {
-          val path = buildPath(config.notableEvents(value.apiKey))
-          val body = s"""{"query": {"bool":{"must":[{"match":{"attachmentIds":"${value.request.attachmentId}"}},{"ids":{"values":"${value.request.nrSubmissionId}"}}]}}}"""
-          createSignedRequest(HttpMethods.POST, config.elasticSearchUri, path, body)
-        }
-      }.getOrElse(HttpRequest())
+      data
+        .toOption
+        .flatMap(value => config.notableEvents.get(value.apiKey).map(notableEvents => (value, notableEvents)))
+        .map {
+          case (value, notableEvents) => {
+            val path = buildPath(notableEvents)
+            val body = s"""{"query": {"bool":{"must":[{"match":{"attachmentIds":"${value.request.attachmentId}"}},{"ids":{"values":"${value.request.nrSubmissionId}"}}]}}}"""
+            createSignedRequest(HttpMethods.POST, config.elasticSearchUri, path, body)
+          }
+        }.getOrElse(HttpRequest())
     }
   }
 

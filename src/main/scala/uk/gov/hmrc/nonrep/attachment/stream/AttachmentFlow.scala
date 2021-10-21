@@ -28,7 +28,7 @@ class AttachmentFlow()(implicit val system: ActorSystem[_],
   private val log = system.log
   val validateAttachmentRequest = es.flow()
 
-  val validation: Flow[AttachmentRequestKey, EitherErr[AttachmentRequestKey], NotUsed] = Flow[AttachmentRequestKey].map {
+  val validateRequest: Flow[AttachmentRequestKey, EitherErr[AttachmentRequestKey], NotUsed] = Flow[AttachmentRequestKey].map {
     Right(_)
   }
 
@@ -42,7 +42,7 @@ class AttachmentFlow()(implicit val system: ActorSystem[_],
         case Success(response) =>
           if (response.status == StatusCodes.OK) {
             log.info(s"ES RESPONSE $response")
-            log.info(s"ES RESPONSE entity $entity")
+
             Right(entity)
           } else {
             val message = s"Searching attachments index error for with status ${response.status.intValue()}"
@@ -66,7 +66,7 @@ class AttachmentFlow()(implicit val system: ActorSystem[_],
     GraphDSL.create() { implicit builder =>
       import GraphDSL.Implicits._
 
-      val validationShape = builder.add(validation)
+      val validationShape = builder.add(validateRequest)
       val responseShape = builder.add(remapAttachmentRequestKey)
 
       validationShape ~> createEsRequest ~> validateAttachmentRequest ~> parseEsResponse ~> responseShape.in

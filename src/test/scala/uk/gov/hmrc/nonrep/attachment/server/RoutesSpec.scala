@@ -31,7 +31,7 @@ class RoutesSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
 
   private implicit val timeout: RouteTestTimeout = RouteTestTimeout(10 second span)
 
-  private val apiKeyHeader = RawHeader("x-api-Key", "66975df1e55c4bb9c7dcb4313e5514c234f071b1199efd455695fefb3e54bbf2")
+  private val apiKeyHeader = RawHeader("x-api-Key", apiKey)
 
   private implicit val config: ServiceConfig = new ServiceConfig()
 
@@ -73,7 +73,7 @@ class RoutesSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
 
     "return 202 code for valid attachment request" in {
       val attachmentId = UUID.randomUUID().toString
-      val attachmentRequest = validAttachmentRequest(attachmentId)
+      val attachmentRequest = validAttachmentRequestJson(attachmentId)
       val request = Post("/attachment").withEntity(`application/json`, attachmentRequest).withHeaders(apiKeyHeader)
       request ~> routes.serviceRoutes ~> check {
         status shouldBe Accepted
@@ -82,7 +82,7 @@ class RoutesSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
     }
 
     "return 5xx code for malformed attachment request" in {
-      val attachmentRequest = invalidAttachmentRequest
+      val attachmentRequest = invalidAttachmentRequestJson
       val request = Post("/attachment").withEntity(`application/json`, attachmentRequest).withHeaders(apiKeyHeader)
       request ~> routes.serviceRoutes ~> check {
         status shouldBe InternalServerError

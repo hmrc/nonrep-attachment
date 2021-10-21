@@ -35,7 +35,7 @@ class IndexingSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
       val attachmentId = UUID.randomUUID().toString
       val submissionId = UUID.randomUUID().toString
       val request = AttachmentRequest("", attachmentId, "", "", submissionId)
-      val attachmentRequest: EitherErr[AttachmentRequestKey] = Right(AttachmentRequestKey("66975df1e55c4bb9c7dcb4313e5514c234f071b1199efd455695fefb3e54bbf2", request))
+      val attachmentRequest: EitherErr[AttachmentRequestKey] = Right(AttachmentRequestKey(apiKey, request))
       val httpRequest = attachmentRequest.query()
       val esValidation = attachmentRequest.flow()
       whenReady(Source.single((httpRequest, attachmentRequest)).via(esValidation).toMat(Sink.head)(Keep.right).run) {
@@ -54,7 +54,7 @@ class IndexingSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
       val attachmentId = UUID.randomUUID().toString
       val submissionId = UUID.randomUUID().toString
       val request = AttachmentRequest("", attachmentId, "", "", submissionId)
-      val attachmentRequest: EitherErr[AttachmentRequestKey] = Right(AttachmentRequestKey("66975df1e55c4bb9c7dcb4313e5514c234f071b1199efd455695fefb3e54bbf2", request))
+      val attachmentRequest: EitherErr[AttachmentRequestKey] = Right(AttachmentRequestKey(apiKey, request))
       val httpRequest = attachmentRequest.query()
 
       httpRequest.method shouldBe HttpMethods.POST

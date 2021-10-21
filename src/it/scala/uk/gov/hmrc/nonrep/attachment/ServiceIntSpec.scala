@@ -82,7 +82,7 @@ class ServiceIntSpec extends BaseSpec with ScalatestRouteTest with ScalaFutures 
     "return 202 status code for POST request to /attachment endpoint" in {
       val attachmentId = UUID.randomUUID().toString
       val request = HttpRequest(POST, uri = s"$hostUrl/attachment")
-        .withEntity(`application/json`, validAttachmentRequest(attachmentId))
+        .withEntity(`application/json`, validAttachmentRequestJson(attachmentId))
         .withHeaders(apiKeyHeader)
 
       val responseFuture: Future[HttpResponse] = Http().singleRequest(request)
