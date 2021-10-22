@@ -5,14 +5,19 @@ package stream
 import java.util.UUID
 
 import akka.actor.typed.ActorSystem
-import akka.http.scaladsl.model.{HttpMethods, HttpRequest, HttpResponse}
+import akka.http.javadsl.model.ws.Message
+import akka.http.scaladsl.model.StatusCodes.InternalServerError
+import akka.http.scaladsl.model.{HttpMethods, HttpRequest, HttpResponse, StatusCodes}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.stream.scaladsl.Keep
 import akka.stream.testkit.scaladsl.{TestSink, TestSource}
 import org.scalatest.concurrent.ScalaFutures
+import software.amazon.eventstream.Message
 import uk.gov.hmrc.nonrep.attachment.TestServices.testKit
-import uk.gov.hmrc.nonrep.attachment.models.{AttachmentRequest, AttachmentRequestKey}
+import uk.gov.hmrc.nonrep.attachment.models.AttachmentRequestKey
 import uk.gov.hmrc.nonrep.attachment.server.ServiceConfig
+
+import scala.util.Try
 
 class AttachmentFlowSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
 
@@ -58,10 +63,34 @@ class AttachmentFlowSpec extends BaseSpec with ScalaFutures with ScalatestRouteT
     }
 
     "parse ES response" in {
+      import TestServices.failure._
 
+      val attachmentId = UUID.randomUUID().toString
+      val submissionId = UUID.randomUUID().toString
+      val source = TestSource.probe[(Try[HttpResponse], EitherErr[AttachmentRequestKey])]
+      val sink = TestSink.probe[(HttpRequest, EitherErr[AttachmentRequestKey])]
+      val (pub, sub) = source.via(flow.parseEsResponse).Mat(sink)(Keep.both).run()
+      pub
+        .sendNext(Right(AttachmentRequestKey(apiKey, validAttachmentRequest(attachmentId, submissionId)))))
+        .sendComplete()
+      val error = sub
+        .request(1)
+        .expectNextPF {
+          case Left(ErrorMessage(message StatusCodes.InternalServerError)))
+        }
+      error.message shouldBe ""
     }
 
     "remap AttachmentRequestKey case class into AttachmentRequest" in {
+      val source = TestSource.probe[AttachmentRequestKey]
+      val sink = TestSink.probe[EitherErr[AttachmentRequestKey]]
+      val (pub, sub) = source.via(flow.remapAttachmentRequestKey [EitherErr[AttachmentRequestKey]]).toMat(sink)(Keep.both).run()
+      pub
+        .sendNext(AttachmentRequestKey(apiKey, validAttachmentRequest()))
+        .sendComplete()
+      sub
+        .request(1)
+        .expectNext().isRight shouldBe true
 
     }
 
