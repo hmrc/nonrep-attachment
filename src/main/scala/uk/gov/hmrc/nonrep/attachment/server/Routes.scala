@@ -17,9 +17,11 @@ import fr.davit.akka.http.metrics.core.scaladsl.server.HttpMetricsDirectives.{pa
 import fr.davit.akka.http.metrics.prometheus.marshalling.PrometheusMarshallers._
 import uk.gov.hmrc.nonrep.BuildInfo
 import uk.gov.hmrc.nonrep.attachment.metrics.Prometheus._
-import uk.gov.hmrc.nonrep.attachment.models.{AttachmentRequest, AttachmentRequestKey}
+import uk.gov.hmrc.nonrep.attachment.models.{AttachmentRequest, AttachmentRequestKey, AttachmentResponse, IncomingRequest}
 import uk.gov.hmrc.nonrep.attachment.stream.AttachmentFlow
 import uk.gov.hmrc.nonrep.attachment.utils.JsonFormats._
+import uk.gov.hmrc.nonrep.attachment.service.ResponseService
+import spray.json._
 
 import scala.util.{Failure, Success}
 
@@ -28,7 +30,7 @@ object Routes {
 }
 
 class Routes(flow: AttachmentFlow)(implicit val system: ActorSystem[_], config: ServiceConfig) {
-
+  import ResponseService.ops._
   implicit val jsonStreamingSupport = EntityStreamingSupport.json()
   private val headerApiKey = "x-api-key"
 
@@ -47,11 +49,11 @@ class Routes(flow: AttachmentFlow)(implicit val system: ActorSystem[_], config: 
             post {
               headerValueByName(headerApiKey) { apiKey =>
 
-                entity(asSourceOf[AttachmentRequest]) { request =>
+                entity(asSourceOf[JsValue]) { request =>
                   val stream = request
                     .log(name = "attachmentFlow")
                     .addAttributes(logLevels(onElement = Off, onFinish = Info, onFailure = Error))
-                    .map(AttachmentRequestKey(apiKey, _))
+                    .map(IncomingRequest(apiKey, _))
                     .via(flow.validationFlow)
                     .toMat(Sink.head)(Keep.right)
                     .run()
@@ -61,18 +63,18 @@ class Routes(flow: AttachmentFlow)(implicit val system: ActorSystem[_], config: 
                       result.fold[StandardRoute](
                         err => {
                           log.error("Submission error {}", err)
-                          complete(HttpResponse(BadRequest))
+                          err.completeAsJson()
                         },
                         res => {
                           complete {
-                            HttpResponse(Accepted, entity = HttpEntity(res.attachmentId))
+                            HttpResponse(Accepted, entity = HttpEntity(AttachmentResponse(res.attachmentId).toJson.toString))
                           }
                         }
                       )
                     case Failure(x) =>
-                      log.error(s"Internal NRS error, caused by ${x.getCause}", x)
-                      complete(HttpResponse(InternalServerError))
-
+                      val message = "Internal NRS error"
+                      log.error(s"$message, caused by ${x.getCause}", x)
+                      ErrorMessage(message, InternalServerError).completeAsJson()
                   }
                 }
               }

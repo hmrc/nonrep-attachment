@@ -38,7 +38,7 @@ class IndexingSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
       val attachmentRequest: EitherErr[AttachmentRequestKey] = Right(AttachmentRequestKey(apiKey, request))
       val httpRequest = attachmentRequest.query()
       val esValidation = attachmentRequest.flow()
-      whenReady(Source.single((httpRequest, attachmentRequest)).via(esValidation).toMat(Sink.head)(Keep.right).run) {
+      whenReady(Source.single((httpRequest, attachmentRequest)).via(esValidation).toMat(Sink.head)(Keep.right).run()) {
         case(tryResponse, entity) => {
           tryResponse.isSuccess shouldBe true
           entity.toOption.get.request.attachmentId shouldBe attachmentId

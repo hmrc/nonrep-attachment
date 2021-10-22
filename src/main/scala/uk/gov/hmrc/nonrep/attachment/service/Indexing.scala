@@ -24,6 +24,8 @@ trait Indexing[A] {
 
   def flow()(implicit system: ActorSystem[_], config: ServiceConfig)
   : Flow[(HttpRequest, EitherErr[A]), (Try[HttpResponse], EitherErr[A]), Any]
+
+  def response:Unit =  ???
 }
 
 object Indexing {

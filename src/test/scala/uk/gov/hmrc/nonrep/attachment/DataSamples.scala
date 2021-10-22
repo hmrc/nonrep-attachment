@@ -21,10 +21,11 @@ trait DataSamples {
     """
 
   val invalidAttachmentRequestJson =
-    """
+    """{
         "attachmentUrl": "https://presignedurl.s3.eu-west-2.amazonaws.com/...",
         "attachmentId": "4b46c86f-30ff-420f-b13f-e4e8b988c08f",
         "payloadSha256Checksum": "426a1c28<snip>d6d363",
         "attachmentContentType": "image/jpeg"
+        }
     """
 }

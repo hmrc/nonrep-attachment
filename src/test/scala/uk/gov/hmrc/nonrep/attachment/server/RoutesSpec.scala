@@ -8,13 +8,14 @@ import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.adapter._
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import akka.http.scaladsl.model.ContentTypes.{`application/json`, `text/plain(UTF-8)`}
-import akka.http.scaladsl.model.StatusCodes.{Accepted, InternalServerError, OK}
+import akka.http.scaladsl.model.StatusCodes.{Accepted, BadRequest, OK}
 import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
 import org.scalatest.concurrent.ScalaFutures
+import spray.json._
 import uk.gov.hmrc.nonrep.BuildInfo
-import uk.gov.hmrc.nonrep.attachment.stream.AttachmentFlow
+import uk.gov.hmrc.nonrep.attachment.models.AttachmentResponse
 import uk.gov.hmrc.nonrep.attachment.utils.JsonFormats._
 
 import scala.concurrent.duration._
@@ -77,7 +78,7 @@ class RoutesSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
       val request = Post("/attachment").withEntity(`application/json`, attachmentRequest).withHeaders(apiKeyHeader)
       request ~> routes.serviceRoutes ~> check {
         status shouldBe Accepted
-        responseAs[String] shouldBe attachmentId
+        responseAs[String] shouldBe AttachmentResponse(attachmentId).toJson.toString
       }
     }
 
@@ -85,7 +86,7 @@ class RoutesSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
       val attachmentRequest = invalidAttachmentRequestJson
       val request = Post("/attachment").withEntity(`application/json`, attachmentRequest).withHeaders(apiKeyHeader)
       request ~> routes.serviceRoutes ~> check {
-        status shouldBe InternalServerError
+        status shouldBe BadRequest
       }
     }
 

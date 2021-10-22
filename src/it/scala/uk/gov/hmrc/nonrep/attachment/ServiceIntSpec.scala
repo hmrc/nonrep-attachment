@@ -15,22 +15,24 @@ import org.scalatest.Inside
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Millis, Span}
 import uk.gov.hmrc.nonrep.BuildInfo
+import uk.gov.hmrc.nonrep.attachment.models.AttachmentResponse
 import uk.gov.hmrc.nonrep.attachment.server.{NonrepMicroservice, Routes, ServiceConfig}
-import uk.gov.hmrc.nonrep.attachment.stream.AttachmentFlow
 import uk.gov.hmrc.nonrep.attachment.utils.JsonFormats._
-
+import spray.json._
 import scala.concurrent.Future
 
 class ServiceIntSpec extends BaseSpec with ScalatestRouteTest with ScalaFutures with Inside {
 
   import TestServices._
 
-  private lazy val service: NonrepMicroservice = NonrepMicroservice(Routes(AttachmentFlow()))
-  private implicit val config: ServiceConfig = new ServiceConfig(servicePort = 9000)
-  private val hostUrl = s"http://localhost:${config.port}"
-
   private lazy val testKit = ActorTestKit()
   private implicit val typedSystem: ActorSystem[Nothing] = testKit.system
+  private implicit val config: ServiceConfig = new ServiceConfig(servicePort = 9000)
+
+  private val routes = Routes(success.flow)
+  private lazy val service: NonrepMicroservice = NonrepMicroservice(routes)(typedSystem, config)
+
+  private val hostUrl = s"http://localhost:${config.port}"
 
   override def createActorSystem(): akka.actor.ActorSystem = testKit.system.toClassic
 
@@ -45,7 +47,7 @@ class ServiceIntSpec extends BaseSpec with ScalatestRouteTest with ScalaFutures 
       _.unbind()
     }
 
-  private val apiKeyHeader = RawHeader("x-api-Key", "validKey")
+  private val apiKeyHeader = RawHeader("x-api-Key", "66975df1e55c4bb9c7dcb4313e5514c234f071b1199efd455695fefb3e54bbf2")
 
   "attachment service service" should {
 
@@ -89,22 +91,19 @@ class ServiceIntSpec extends BaseSpec with ScalatestRouteTest with ScalaFutures 
       whenReady(responseFuture) { res =>
         res.status shouldBe StatusCodes.Accepted
         whenReady(entityToString(res.entity)) { body =>
-          body shouldBe attachmentId
+          body shouldBe AttachmentResponse(attachmentId).toJson.toString
         }
       }
     }
-    //to improve this test - idea is to write one that shows a failed request when using an invalidAttachment request
     "return 400 status code for POST request to /attachment with lack of attachments data in meta-store" in {
       val attachmentId = UUID.randomUUID().toString
       val request = HttpRequest(POST, uri = s"$hostUrl/attachment")
-//        .withEntity(`application/json`, invalidAttachmentRequest(attachmentId))
+        .withHeaders(apiKeyHeader)
+        .withEntity(`application/json`, invalidAttachmentRequestJson)
 
       val responseFuture: Future[HttpResponse] = Http().singleRequest(request)
       whenReady(responseFuture) { res =>
         res.status shouldBe StatusCodes.BadRequest
-        whenReady(entityToString(res.entity)) { body =>
-          body shouldBe attachmentId
-        }
       }
     }
 

@@ -44,29 +44,29 @@ object TestServices {
   }
 
   object failure {
-    def flowWithAttachmentError(message: String, code: StatusCode): AttachmentFlow =
-      new AttachmentFlow() {
-        override val submission
-        : Flow[EitherErr[AttachmentRequestKey], Either[ErrorMessage], Nothing] =
-          Flow[EitherErr[AttachmentRequestKey]].map {
-            _.flatMap {
-              case (_, sr) =>
-                Left(ErrorMessage(message, StatusCodes.InternalServerError)))
-            }
-          }
-      }
-
-    implicit val queryForAttachments: Indexing[AttachmentRequestKey] = new Indexing[AttachmentRequestKey]() {
-      override def query(value: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig): HttpRequest = HttpRequest()
-
-      override def flow()(implicit system: ActorSystem, config: ServiceConfig)
-      : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] =
-        Flow[(HttpRequest, EitherErr[AttachmentRequestKey])].map {
-          case (_, request) => (Try(HttpResponse(StatusCodes.InternalServerError)), request)
-        }
-    }
-
-    val flow: AttachmentFlow = new AttachmentFlow() {}
+//    def flowWithAttachmentError(message: String, code: StatusCode): AttachmentFlow =
+//      new AttachmentFlow() {
+//        override val submission
+//        : Flow[EitherErr[AttachmentRequestKey], Either[ErrorMessage], Nothing] =
+//          Flow[EitherErr[AttachmentRequestKey]].map {
+//            _.flatMap {
+//              case (_, sr) =>
+//                Left(ErrorMessage(message, StatusCodes.InternalServerError)))
+//            }
+//          }
+//      }
+//
+//    implicit val queryForAttachments: Indexing[AttachmentRequestKey] = new Indexing[AttachmentRequestKey]() {
+//      override def query(value: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig): HttpRequest = HttpRequest()
+//
+//      override def flow()(implicit system: ActorSystem, config: ServiceConfig)
+//      : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] =
+//        Flow[(HttpRequest, EitherErr[AttachmentRequestKey])].map {
+//          case (_, request) => (Try(HttpResponse(StatusCodes.InternalServerError)), request)
+//        }
+//    }
+//
+//    val flow: AttachmentFlow = new AttachmentFlow() {}
 
   }
 }
