@@ -9,44 +9,66 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.RawHeader
 import akka.stream.scaladsl.Flow
+import akka.util.ByteString
 import org.apache.http.client.utils.URIBuilder
-import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider
+import software.amazon.awssdk.auth.credentials.{AwsCredentialsProvider, DefaultCredentialsProvider}
 import software.amazon.awssdk.auth.signer.{Aws4Signer, AwsSignerExecutionAttribute}
 import software.amazon.awssdk.core.interceptor.ExecutionAttributes
 import software.amazon.awssdk.http.{SdkHttpFullRequest, SdkHttpMethod}
 import software.amazon.awssdk.regions.Region
-import uk.gov.hmrc.nonrep.attachment.models.AttachmentRequestKey
+import spray.json._
+import uk.gov.hmrc.nonrep.attachment.models.{AttachmentRequestKey, SearchResponse}
 import uk.gov.hmrc.nonrep.attachment.server.ServiceConfig
+import uk.gov.hmrc.nonrep.attachment.utils.JsonFormats._
+
+import scala.concurrent.Future
 import scala.util.Try
 
-trait Indexing[A] {
+trait Request[A] {
   def query(data: EitherErr[A])(implicit config: ServiceConfig): HttpRequest
-
-  def flow()(implicit system: ActorSystem[_], config: ServiceConfig)
-  : Flow[(HttpRequest, EitherErr[A]), (Try[HttpResponse], EitherErr[A]), Any]
-
-  def response:Unit =  ???
 }
 
+trait Call[A] {
+  def run()(implicit system: ActorSystem[_], config: ServiceConfig)
+  : Flow[(HttpRequest, EitherErr[A]), (Try[HttpResponse], EitherErr[A]), Any]
+}
+
+trait Response[A] {
+  def parse(value: EitherErr[A], response: HttpResponse)(implicit system: ActorSystem[_]): Future[EitherErr[A]]
+}
+
+trait Indexing[A] extends Request[A] with Call[A] with Response[A] {}
+
 object Indexing {
-  def apply[A](implicit service: Indexing[A]): Indexing[A] = service
+
+  object Request {
+    def apply[A](implicit service: Request[A]): Request[A] = service
+  }
+  object Call {
+    def apply[A](implicit service: Call[A]): Call[A] = service
+  }
+  object Response {
+    def apply[A](implicit service: Response[A]): Response[A] = service
+  }
 
   object ops {
 
-    implicit class IndexingOps[A: Indexing](value: EitherErr[A]) {
-      def query()(implicit config: ServiceConfig): HttpRequest = Indexing[A].query(value)
-
-      def flow()(implicit system: ActorSystem[_], config: ServiceConfig)
-      : Flow[(HttpRequest, EitherErr[A]), (Try[HttpResponse], EitherErr[A]), Any] =
-        Indexing[A].flow()
+    implicit class RequestOps[A: Request](value: EitherErr[A]) {
+      def query()(implicit config: ServiceConfig): HttpRequest = Request[A].query(value)
     }
-
+    implicit class CallOps[A: Call](value: EitherErr[A]) {
+      def flow()(implicit system: ActorSystem[_], config: ServiceConfig)
+      : Flow[(HttpRequest, EitherErr[A]), (Try[HttpResponse], EitherErr[A]), Any] = Call[A].run()
+    }
+    implicit class ResponseOps[A: Response](value: EitherErr[A]) {
+      def parse(response: HttpResponse)(implicit system: ActorSystem[_]): Future[EitherErr[A]] =
+        Response[A].parse(value, response)
+    }
   }
 
-  implicit val defaultQueryForAttachments: Indexing[AttachmentRequestKey] = new Indexing[AttachmentRequestKey]() {
-
-    override def flow()(implicit system: ActorSystem[_], config: ServiceConfig):
-    Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Http.HostConnectionPool] =
+  implicit val defaultIndexingService: Indexing[AttachmentRequestKey] = new Indexing[AttachmentRequestKey] {
+    override def run()(implicit system: ActorSystem[_], config: ServiceConfig):
+    Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] =
       if (config.isElasticSearchProtocolSecure)
         Http().cachedHostConnectionPoolHttps[EitherErr[AttachmentRequestKey]](config.elasticSearchHost)
       else
@@ -57,29 +79,48 @@ object Indexing {
         .toOption
         .flatMap(value => config.notableEvents.get(value.apiKey).map(notableEvents => (value, notableEvents)))
         .map {
-          case (value, notableEvents) => {
+          case (value, notableEvents) =>
+            import RequestsSigner._
             val path = buildPath(notableEvents)
             val body = s"""{"query": {"bool":{"must":[{"match":{"attachmentIds":"${value.request.attachmentId}"}},{"ids":{"values":"${value.request.nrSubmissionId}"}}]}}}"""
             createSignedRequest(HttpMethods.POST, config.elasticSearchUri, path, body)
-          }
         }.getOrElse(HttpRequest())
+    }
+
+    override def parse(value: EitherErr[AttachmentRequestKey], response: HttpResponse)(implicit system: ActorSystem[_]): Future[EitherErr[AttachmentRequestKey]] = {
+      if(response.status == StatusCodes.OK) {
+        import system.executionContext
+        response
+          .entity
+          .dataBytes
+          .runFold(ByteString.empty)(_ ++ _)
+          .map(_.utf8String)
+          .map(_.parseJson)
+          .map(_.convertTo[SearchResponse])
+          .map(Right(_).withLeft[ErrorMessage])
+          .map(_.filterOrElse(_.hits.total == 1, ErrorMessage("Invalid nrSubmissionId")).flatMap(_ => value))
+      } else {
+        val error = ErrorMessage(s"Response status ${response.status} from ES server", StatusCodes.InternalServerError)
+        response.discardEntityBytes()
+        Future.successful(Left(error))
+      }
     }
   }
 
+  def buildPath(notableEvent: Set[String]) = s"/${notableEvent.map(_.concat("-attachments")).mkString(",")}/_search"
+}
+
+object RequestsSigner {
   private lazy val signer = Aws4Signer.create()
 
-  def buildPath(notableEvent: Set[String]) = s"/${notableEvent.map(_.concat("-attachments")).mkString(",")}/_search"
-
-  def createSignedRequest: HttpRequest => HttpRequest = ???
-
-  private[service] def createSignedRequest(method: HttpMethod, uri: URI, path: String, body: String): HttpRequest = {
+  def createSignedRequest(method: HttpMethod, uri: URI, path: String, body: String, credsProvider: AwsCredentialsProvider = DefaultCredentialsProvider.create()): HttpRequest = {
 
     import scala.jdk.CollectionConverters._
 
     val attributes = new ExecutionAttributes()
     attributes.putAttribute(AwsSignerExecutionAttribute.SERVICE_SIGNING_NAME, "es")
     attributes.putAttribute(AwsSignerExecutionAttribute.SIGNING_REGION, Region.of("eu-west-2"))
-    attributes.putAttribute(AwsSignerExecutionAttribute.AWS_CREDENTIALS, DefaultCredentialsProvider.create().resolveCredentials)
+    attributes.putAttribute(AwsSignerExecutionAttribute.AWS_CREDENTIALS, credsProvider.resolveCredentials)
     val uriBuilder = new URIBuilder(path)
     val httpMethod = SdkHttpMethod.fromValue(method.value)
     val builder = SdkHttpFullRequest

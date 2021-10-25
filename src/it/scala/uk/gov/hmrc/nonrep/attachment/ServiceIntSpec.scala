@@ -14,11 +14,12 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import org.scalatest.Inside
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Millis, Span}
+import spray.json._
 import uk.gov.hmrc.nonrep.BuildInfo
 import uk.gov.hmrc.nonrep.attachment.models.AttachmentResponse
 import uk.gov.hmrc.nonrep.attachment.server.{NonrepMicroservice, Routes, ServiceConfig}
 import uk.gov.hmrc.nonrep.attachment.utils.JsonFormats._
-import spray.json._
+
 import scala.concurrent.Future
 
 class ServiceIntSpec extends BaseSpec with ScalatestRouteTest with ScalaFutures with Inside {

@@ -30,7 +30,9 @@ object Routes {
 }
 
 class Routes(flow: AttachmentFlow)(implicit val system: ActorSystem[_], config: ServiceConfig) {
+
   import ResponseService.ops._
+
   implicit val jsonStreamingSupport = EntityStreamingSupport.json()
   private val headerApiKey = "x-api-key"
 

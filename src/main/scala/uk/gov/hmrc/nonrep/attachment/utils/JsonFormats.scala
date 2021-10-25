@@ -2,7 +2,7 @@ package uk.gov.hmrc.nonrep.attachment
 package utils
 
 import spray.json.{DefaultJsonProtocol, RootJsonFormat}
-import uk.gov.hmrc.nonrep.attachment.models.{AttachmentRequest, AttachmentResponse, IncomingRequest, SearchHits, SearchResponse}
+import uk.gov.hmrc.nonrep.attachment.models._
 
 object JsonFormats extends DefaultJsonProtocol {
 

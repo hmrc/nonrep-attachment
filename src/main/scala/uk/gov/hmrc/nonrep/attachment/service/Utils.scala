@@ -4,8 +4,8 @@ package service
 import akka.http.scaladsl.model.{ContentTypes, HttpEntity, HttpResponse}
 import akka.http.scaladsl.server.Directives.complete
 import akka.http.scaladsl.server.StandardRoute
-import uk.gov.hmrc.nonrep.attachment.utils.JsonFormats._
 import spray.json._
+import uk.gov.hmrc.nonrep.attachment.utils.JsonFormats._
 
 trait ResponseService[A] {
   def completeAsJson(message: A): StandardRoute

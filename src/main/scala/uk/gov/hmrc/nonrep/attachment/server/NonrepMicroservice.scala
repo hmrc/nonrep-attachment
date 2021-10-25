@@ -14,6 +14,7 @@ object NonrepMicroservice {
 }
 
 class NonrepMicroservice(routes: Routes)(implicit val system: ActorSystem[_], config: ServiceConfig) {
+
   import system.executionContext
 
   val serverBinding: Future[Http.ServerBinding] = Http().newServerAt("0.0.0.0", config.port).bind(routes.serviceRoutes)
@@ -35,8 +36,8 @@ class NonrepMicroservice(routes: Routes)(implicit val system: ActorSystem[_], co
 object Main {
 
   /**
-    * https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/java-dg-jvm-ttl.html
-    */
+   * https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/java-dg-jvm-ttl.html
+   */
   java.security.Security.setProperty("networkaddress.cache.ttl", "60")
 
   implicit val config: ServiceConfig = new ServiceConfig()
