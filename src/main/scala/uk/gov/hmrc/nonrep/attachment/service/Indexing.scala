@@ -82,7 +82,7 @@ object Indexing {
           case (value, notableEvents) =>
             import RequestsSigner._
             val path = buildPath(notableEvents)
-            val body = s"""{"query": {"bool":{"must":[{"match":{"attachmentIds":"${value.request.attachmentId}"}},{"ids":{"values":"${value.request.nrSubmissionId}"}}]}}}"""
+            val body = s"""{"query": {"bool":{"must":[{"match":{"attachmentIds.keyword":"${value.request.attachmentId}"}},{"ids":{"values":"${value.request.nrSubmissionId}"}}]}}}"""
             createSignedRequest(HttpMethods.POST, config.elasticSearchUri, path, body)
         }.getOrElse(HttpRequest())
     }
