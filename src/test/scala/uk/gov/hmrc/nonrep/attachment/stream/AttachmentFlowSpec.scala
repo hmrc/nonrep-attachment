@@ -61,8 +61,6 @@ class AttachmentFlowSpec extends BaseSpec with ScalaFutures with ScalatestRouteT
     }
 
     "parse ES response" in {
-      import TestServices.success._
-
       val attachmentId = UUID.randomUUID().toString
       val submissionId = UUID.randomUUID().toString
       val source = TestSource.probe[(Try[HttpResponse], EitherErr[AttachmentRequestKey])]
@@ -113,5 +111,29 @@ class AttachmentFlowSpec extends BaseSpec with ScalaFutures with ScalatestRouteT
       result.toOption.get.nrSubmissionId shouldBe submissionId
     }
 
+  }
+
+  "for negative scenario" should {
+    import TestServices._
+    import TestServices.failure._
+
+    "fail on ES upstream failure" in {
+      val attachmentId = UUID.randomUUID().toString
+      val submissionId = UUID.randomUUID().toString
+      val source = TestSource.probe[IncomingRequest]
+      val sink = TestSink.probe[Either[ErrorMessage, AttachmentRequest]]
+      val (pub, sub) = source.via(flow.validationFlow).toMat(sink)(Keep.both).run()
+      pub
+        .sendNext(IncomingRequest(apiKey, validAttachmentRequestJson(attachmentId, submissionId).parseJson))
+        .sendComplete()
+      val result = sub
+        .request(1)
+        .expectNext()
+
+      result.isLeft shouldBe true
+      result.left.map { error =>
+        error.message should include("Invalid nrSubmissionId")
+      }
+    }
   }
 }

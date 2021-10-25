@@ -22,8 +22,6 @@ import scala.concurrent.duration._
 
 class RoutesSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
 
-  import TestServices.success._
-
   private lazy val testKit = ActorTestKit()
 
   private implicit def typedSystem: ActorSystem[Nothing] = testKit.system
@@ -36,9 +34,11 @@ class RoutesSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
 
   private implicit val config: ServiceConfig = new ServiceConfig()
 
-  private val routes = new Routes(flow)
 
   "Service routes for attachment service" should {
+
+    import TestServices.success._
+    val routes = new Routes(flow)
 
     "catch exception" in {
       Get(s"/${config.appName}/version") ~> handleExceptions(routes.exceptionHandler) {
@@ -89,9 +89,18 @@ class RoutesSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
         status shouldBe BadRequest
       }
     }
+  }
 
+  "For negative scenario" should {
+    import TestServices.failure._
+    val routes = new Routes(flow)
     "return 400 code for invalid attachment request (doesn't have corresponding data in meta-store)" in {
-
+      val attachmentRequest = invalidAttachmentRequestJson
+      val request = Post("/attachment").withEntity(`application/json`, attachmentRequest).withHeaders(apiKeyHeader)
+      request ~> routes.serviceRoutes ~> check {
+        status shouldBe BadRequest
+        responseAs[String] should include("Invalid nrSubmissionId")
+      }
     }
   }
 }

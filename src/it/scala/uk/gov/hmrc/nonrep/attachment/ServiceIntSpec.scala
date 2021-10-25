@@ -96,8 +96,8 @@ class ServiceIntSpec extends BaseSpec with ScalatestRouteTest with ScalaFutures 
         }
       }
     }
+
     "return 400 status code for POST request to /attachment with lack of attachments data in meta-store" in {
-      val attachmentId = UUID.randomUUID().toString
       val request = HttpRequest(POST, uri = s"$hostUrl/attachment")
         .withHeaders(apiKeyHeader)
         .withEntity(`application/json`, invalidAttachmentRequestJson)

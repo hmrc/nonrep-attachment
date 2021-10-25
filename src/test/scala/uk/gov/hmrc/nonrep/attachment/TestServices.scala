@@ -61,7 +61,7 @@ object TestServices {
         }
 
       override def parse(value: EitherErr[AttachmentRequestKey], response: HttpResponse)(implicit system: ActorSystem[_]): Future[EitherErr[AttachmentRequestKey]] =
-        Future.failed(new RuntimeException())
+        Future.successful(Left(ErrorMessage("Invalid nrSubmissionId")))
     }
     val flow: AttachmentFlow = new AttachmentFlow() {}
   }
