@@ -96,7 +96,21 @@ class AttachmentFlowSpec extends BaseSpec with ScalaFutures with ScalatestRouteT
     }
 
     "validate attachments flow" in {
+      val attachmentId = UUID.randomUUID().toString
+      val submissionId = UUID.randomUUID().toString
+      val source = TestSource.probe[IncomingRequest]
+      val sink = TestSink.probe[Either[ErrorMessage, AttachmentRequest]]
+      val (pub, sub) = source.via(flow.validationFlow).toMat(sink)(Keep.both).run()
+      pub
+        .sendNext(IncomingRequest(apiKey, validAttachmentRequestJson(attachmentId, submissionId).parseJson))
+        .sendComplete()
+      val result = sub
+        .request(1)
+        .expectNext()
 
+      result.isRight shouldBe true
+      result.toOption.get.attachmentId shouldBe attachmentId
+      result.toOption.get.nrSubmissionId shouldBe submissionId
     }
 
   }
