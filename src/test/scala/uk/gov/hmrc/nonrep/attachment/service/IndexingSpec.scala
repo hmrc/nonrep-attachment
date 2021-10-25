@@ -26,7 +26,7 @@ class IndexingSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
     "verify ES build path" in {
       Indexing.buildPath(Set("vat-registration")) shouldBe "/vat-registration-attachments/_search"
       //for any future attachments support
-      Indexing.buildPath(Set("itsa-eops", "itsa-annual-adjustments", "itsa-crystallisation"))shouldBe
+      Indexing.buildPath(Set("itsa-eops", "itsa-annual-adjustments", "itsa-crystallisation")) shouldBe
         "/itsa-eops-attachments,itsa-annual-adjustments-attachments,itsa-crystallisation-attachments/_search"
     }
 
@@ -40,7 +40,7 @@ class IndexingSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
       val httpRequest = attachmentRequest.query()
       val esValidation = attachmentRequest.flow()
       whenReady(Source.single((httpRequest, attachmentRequest)).via(esValidation).toMat(Sink.head)(Keep.right).run()) {
-        case(tryResponse, entity) => {
+        case (tryResponse, entity) => {
           tryResponse.isSuccess shouldBe true
           entity.toOption.get.request.attachmentId shouldBe attachmentId
           entity.toOption.get.request.nrSubmissionId shouldBe submissionId
@@ -58,7 +58,7 @@ class IndexingSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
       val httpRequest = attachmentRequest.query()
       val esValidation = attachmentRequest.flow()
       whenReady(Source.single((httpRequest, attachmentRequest)).via(esValidation).toMat(Sink.head)(Keep.right).run()) {
-        case(tryResponse, entity) => {
+        case (tryResponse, entity) => {
           tryResponse.isSuccess shouldBe true
           tryResponse.get.status shouldBe StatusCodes.InternalServerError
         }
@@ -78,8 +78,8 @@ class IndexingSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
       httpRequest.method shouldBe HttpMethods.POST
       httpRequest.uri.toString shouldBe "/vat-registration-attachments/_search"
       whenReady(entityToString(httpRequest.entity)) { res =>
-        res should include (attachmentId)
-        res should include (submissionId)
+        res should include(attachmentId)
+        res should include(submissionId)
       }
     }
   }

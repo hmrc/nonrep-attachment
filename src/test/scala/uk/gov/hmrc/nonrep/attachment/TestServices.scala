@@ -15,7 +15,9 @@ import scala.util.Try
 
 object TestServices {
   lazy val testKit: ActorTestKit = ActorTestKit()
+
   implicit def typedSystem: ActorSystem[Nothing] = testKit.system
+
   implicit val config: ServiceConfig = new ServiceConfig()
 
   def entityToString(entity: ResponseEntity)(implicit ec: ExecutionContext): Future[String] = {
@@ -65,4 +67,5 @@ object TestServices {
     }
     val flow: AttachmentFlow = new AttachmentFlow() {}
   }
+
 }

@@ -44,9 +44,11 @@ object Indexing {
   object Request {
     def apply[A](implicit service: Request[A]): Request[A] = service
   }
+
   object Call {
     def apply[A](implicit service: Call[A]): Call[A] = service
   }
+
   object Response {
     def apply[A](implicit service: Response[A]): Response[A] = service
   }
@@ -56,14 +58,17 @@ object Indexing {
     implicit class RequestOps[A: Request](value: EitherErr[A]) {
       def query()(implicit config: ServiceConfig): HttpRequest = Request[A].query(value)
     }
+
     implicit class CallOps[A: Call](value: EitherErr[A]) {
       def flow()(implicit system: ActorSystem[_], config: ServiceConfig)
       : Flow[(HttpRequest, EitherErr[A]), (Try[HttpResponse], EitherErr[A]), Any] = Call[A].run()
     }
+
     implicit class ResponseOps[A: Response](value: EitherErr[A]) {
       def parse(response: HttpResponse)(implicit system: ActorSystem[_]): Future[EitherErr[A]] =
         Response[A].parse(value, response)
     }
+
   }
 
   implicit val defaultIndexingService: Indexing[AttachmentRequestKey] = new Indexing[AttachmentRequestKey] {
@@ -88,7 +93,7 @@ object Indexing {
     }
 
     override def parse(value: EitherErr[AttachmentRequestKey], response: HttpResponse)(implicit system: ActorSystem[_]): Future[EitherErr[AttachmentRequestKey]] = {
-      if(response.status == StatusCodes.OK) {
+      if (response.status == StatusCodes.OK) {
         import system.executionContext
         response
           .entity
