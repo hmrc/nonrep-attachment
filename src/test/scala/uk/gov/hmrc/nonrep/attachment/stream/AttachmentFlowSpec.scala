@@ -19,7 +19,6 @@ import scala.util.Try
 class AttachmentFlowSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
 
   private implicit val typedSystem: ActorSystem[Nothing] = testKit.system
-  private val config = new ServiceConfig()
 
   "attachments flow" should {
     import TestServices._
