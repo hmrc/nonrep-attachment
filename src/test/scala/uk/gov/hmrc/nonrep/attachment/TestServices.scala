@@ -27,7 +27,7 @@ object TestServices {
   }
 
   object success {
-    implicit val queryForAttachments: Indexing[AttachmentRequestKey] = new Indexing[AttachmentRequestKey]() {
+    implicit val successfulIndexing: Indexing[AttachmentRequestKey] = new Indexing[AttachmentRequestKey]() {
       override def query(data: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig): HttpRequest =
         data.toOption.map { value =>
           val path = Indexing.buildPath(config.notableEvents(value.apiKey))
@@ -48,7 +48,7 @@ object TestServices {
   }
 
   object failure {
-    implicit val queryForAttachments: Indexing[AttachmentRequestKey] = new Indexing[AttachmentRequestKey]() {
+    implicit val indexingWithUpstreamFailureAndParsingError: Indexing[AttachmentRequestKey] = new Indexing[AttachmentRequestKey]() {
       override def query(data: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig): HttpRequest =
         data.toOption.map { value =>
           val path = Indexing.buildPath(config.notableEvents(value.apiKey))
@@ -63,7 +63,7 @@ object TestServices {
         }
 
       override def parse(value: EitherErr[AttachmentRequestKey], response: HttpResponse)(implicit system: ActorSystem[_]): Future[EitherErr[AttachmentRequestKey]] =
-        Future.successful(Left(ErrorMessage("Invalid nrSubmissionId")))
+        Future.successful(Left(ErrorMessage("nrSubmissionId validation error")))
     }
     val flow: AttachmentFlow = new AttachmentFlow() {}
   }

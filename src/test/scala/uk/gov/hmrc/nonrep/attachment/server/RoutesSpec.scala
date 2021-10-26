@@ -99,7 +99,7 @@ class RoutesSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
       val request = Post("/attachment").withEntity(`application/json`, attachmentRequest).withHeaders(apiKeyHeader)
       request ~> routes.serviceRoutes ~> check {
         status shouldBe BadRequest
-        responseAs[String] should include("Invalid nrSubmissionId")
+        responseAs[String] should include("nrSubmissionId validation error")
       }
     }
   }

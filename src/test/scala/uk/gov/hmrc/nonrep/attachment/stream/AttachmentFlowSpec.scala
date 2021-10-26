@@ -131,7 +131,7 @@ class AttachmentFlowSpec extends BaseSpec with ScalaFutures with ScalatestRouteT
 
       result.isLeft shouldBe true
       result.left.map { error =>
-        error.message should include("Invalid nrSubmissionId")
+        error.message should include("nrSubmissionId validation error")
       }
     }
   }
