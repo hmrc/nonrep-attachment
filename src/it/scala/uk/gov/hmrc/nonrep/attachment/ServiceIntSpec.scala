@@ -1,32 +1,39 @@
 package uk.gov.hmrc.nonrep.attachment
 
+import java.util.UUID
+
 import akka.actor.testkit.typed.scaladsl.ActorTestKit
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.adapter._
 import akka.http.scaladsl.Http
+import akka.http.scaladsl.model.ContentTypes.`application/json`
+import akka.http.scaladsl.model.HttpMethods.POST
+import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse, StatusCodes}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import org.scalatest.Inside
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{Millis, Span}
-import org.scalatest.wordspec.AnyWordSpec
+import spray.json._
 import uk.gov.hmrc.nonrep.BuildInfo
+import uk.gov.hmrc.nonrep.attachment.models.AttachmentResponse
 import uk.gov.hmrc.nonrep.attachment.server.{NonrepMicroservice, Routes, ServiceConfig}
 import uk.gov.hmrc.nonrep.attachment.utils.JsonFormats._
 
 import scala.concurrent.Future
 
-class ServiceIntSpec extends AnyWordSpec with Matchers with ScalatestRouteTest with ScalaFutures with Inside {
+class ServiceIntSpec extends BaseSpec with ScalatestRouteTest with ScalaFutures with Inside {
 
   import TestServices._
 
-  private lazy val service: NonrepMicroservice = NonrepMicroservice(Routes())
-  private implicit val config: ServiceConfig = new ServiceConfig(servicePort = 9000)
-  private val hostUrl = s"http://localhost:${config.port}"
-
   private lazy val testKit = ActorTestKit()
   private implicit val typedSystem: ActorSystem[Nothing] = testKit.system
+  private implicit val config: ServiceConfig = new ServiceConfig(servicePort = 9000)
+
+  private val routes = Routes(success.flow)
+  private lazy val service: NonrepMicroservice = NonrepMicroservice(routes)(typedSystem, config)
+
+  private val hostUrl = s"http://localhost:${config.port}"
 
   override def createActorSystem(): akka.actor.ActorSystem = testKit.system.toClassic
 
@@ -40,6 +47,8 @@ class ServiceIntSpec extends AnyWordSpec with Matchers with ScalatestRouteTest w
     whenReady(service.serverBinding) {
       _.unbind()
     }
+
+  private val apiKeyHeader = RawHeader("x-api-Key", "66975df1e55c4bb9c7dcb4313e5514c234f071b1199efd455695fefb3e54bbf2")
 
   "attachment service service" should {
 
@@ -70,6 +79,32 @@ class ServiceIntSpec extends AnyWordSpec with Matchers with ScalatestRouteTest w
         whenReady(entityToString(res.entity)) { body =>
           body shouldBe "pong"
         }
+      }
+    }
+
+    "return 202 status code for POST request to /attachment endpoint" in {
+      val attachmentId = UUID.randomUUID().toString
+      val request = HttpRequest(POST, uri = s"$hostUrl/attachment")
+        .withEntity(`application/json`, validAttachmentRequestJson(attachmentId))
+        .withHeaders(apiKeyHeader)
+
+      val responseFuture: Future[HttpResponse] = Http().singleRequest(request)
+      whenReady(responseFuture) { res =>
+        res.status shouldBe StatusCodes.Accepted
+        whenReady(entityToString(res.entity)) { body =>
+          body shouldBe AttachmentResponse(attachmentId).toJson.toString
+        }
+      }
+    }
+
+    "return 400 status code for POST request to /attachment with lack of attachments data in meta-store" in {
+      val request = HttpRequest(POST, uri = s"$hostUrl/attachment")
+        .withHeaders(apiKeyHeader)
+        .withEntity(`application/json`, invalidAttachmentRequestJson)
+
+      val responseFuture: Future[HttpResponse] = Http().singleRequest(request)
+      whenReady(responseFuture) { res =>
+        res.status shouldBe StatusCodes.BadRequest
       }
     }
 

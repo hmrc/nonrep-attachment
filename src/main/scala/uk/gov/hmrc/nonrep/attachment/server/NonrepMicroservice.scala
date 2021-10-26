@@ -4,6 +4,7 @@ package server
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.Behaviors
 import akka.http.scaladsl.Http
+import uk.gov.hmrc.nonrep.attachment.stream.AttachmentFlow
 
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
@@ -13,6 +14,7 @@ object NonrepMicroservice {
 }
 
 class NonrepMicroservice(routes: Routes)(implicit val system: ActorSystem[_], config: ServiceConfig) {
+
   import system.executionContext
 
   val serverBinding: Future[Http.ServerBinding] = Http().newServerAt("0.0.0.0", config.port).bind(routes.serviceRoutes)
@@ -34,15 +36,17 @@ class NonrepMicroservice(routes: Routes)(implicit val system: ActorSystem[_], co
 object Main {
 
   /**
-    * https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/java-dg-jvm-ttl.html
-    */
+   * https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/java-dg-jvm-ttl.html
+   */
   java.security.Security.setProperty("networkaddress.cache.ttl", "60")
 
   implicit val config: ServiceConfig = new ServiceConfig()
 
   def main(args: Array[String]): Unit = {
     val rootBehavior = Behaviors.setup[Nothing] { context =>
-      val routes = Routes()(context.system, implicitly)
+
+      val flow = AttachmentFlow()(context.system, implicitly, implicitly)
+      val routes = Routes(flow)(context.system, implicitly)
 
       NonrepMicroservice(routes)(context.system, config)
 
