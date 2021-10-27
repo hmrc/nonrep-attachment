@@ -64,7 +64,7 @@ class Routes(flow: AttachmentFlow)(implicit val system: ActorSystem[_], config: 
                     case Success(result) =>
                       result.fold[StandardRoute](
                         err => {
-                          log.error("Submission error {}", err)
+                          log.error("Attachment service error {}", err)
                           err.completeAsJson()
                         },
                         res => {
