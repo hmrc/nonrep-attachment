@@ -16,4 +16,5 @@ package object attachment {
     def apply(message: String, code: Int): ErrorMessage = ErrorMessage(message, StatusCode.int2StatusCode(code))
   }
 
+  case class ErrorHttpJson(errorMessage: String)
 }

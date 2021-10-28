@@ -12,4 +12,5 @@ object JsonFormats extends DefaultJsonProtocol {
   implicit val SearchResponseJsonFormat: RootJsonFormat[SearchResponse] = jsonFormat3(SearchResponse)
   implicit val attachmentResponseJsonFormat: RootJsonFormat[AttachmentResponse] = jsonFormat1(AttachmentResponse)
   implicit val incomingRequestJsonFormat: RootJsonFormat[IncomingRequest] = jsonFormat2(IncomingRequest)
+  implicit val errorHttpJsonFormat: RootJsonFormat[ErrorHttpJson] = jsonFormat1(ErrorHttpJson)
 }

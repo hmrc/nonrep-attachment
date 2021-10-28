@@ -28,7 +28,7 @@ object ResponseService {
   def completeAsJson(em: ErrorMessage) = complete(
     HttpResponse(
       em.code,
-      entity = HttpEntity(ContentTypes.`application/json`, em.message.toJson.toString())
+      entity = HttpEntity(ContentTypes.`application/json`, ErrorHttpJson(em.message).toJson.toString())
     )
   )
 
