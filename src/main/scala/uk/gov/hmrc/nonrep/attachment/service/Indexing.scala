@@ -3,9 +3,9 @@ package service
 
 import java.io.ByteArrayInputStream
 import java.net.URI
-
 import akka.actor.typed.ActorSystem
 import akka.http.scaladsl.Http
+import akka.http.scaladsl.model.StatusCodes.{BadRequest, InternalServerError, NotFound, OK}
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.RawHeader
 import akka.stream.scaladsl.Flow
@@ -79,7 +79,7 @@ object Indexing {
       else
         Http().cachedHostConnectionPool[EitherErr[AttachmentRequestKey]](config.elasticSearchHost)
 
-    override def query(data: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig): HttpRequest = {
+    override def query(data: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig): HttpRequest =
       data
         .toOption
         .flatMap(value => config.notableEvents.get(value.apiKey).map(notableEvents => (value, notableEvents)))
@@ -90,11 +90,17 @@ object Indexing {
             val body = s"""{"query": {"bool":{"must":[{"match":{"attachmentIds.keyword":"${value.request.attachmentId}"}},{"ids":{"values":"${value.request.nrSubmissionId}"}}]}}}"""
             createSignedRequest(HttpMethods.POST, config.elasticSearchUri, path, body)
         }.getOrElse(HttpRequest())
-    }
 
     override def parse(value: EitherErr[AttachmentRequestKey], response: HttpResponse)(implicit system: ActorSystem[_]): Future[EitherErr[AttachmentRequestKey]] = {
-      if (response.status == StatusCodes.OK) {
-        import system.executionContext
+      import system.executionContext
+
+      def error(statusCode: StatusCode) = {
+        val error = ErrorMessage(s"Response status ${response.status} from ES server", statusCode)
+        response.discardEntityBytes()
+        Future.successful(Left(error))
+      }
+
+      if (response.status == OK)
         response
           .entity
           .dataBytes
@@ -104,11 +110,10 @@ object Indexing {
           .map(_.convertTo[SearchResponse])
           .map(Right(_).withLeft[ErrorMessage])
           .map(_.filterOrElse(_.hits.total == 1, ErrorMessage("Invalid nrSubmissionId")).flatMap(_ => value))
-      } else {
-        val error = ErrorMessage(s"Response status ${response.status} from ES server", StatusCodes.InternalServerError)
-        response.discardEntityBytes()
-        Future.successful(Left(error))
-      }
+      else if (response.status == NotFound)
+        error(BadRequest)
+      else
+        error(InternalServerError)
     }
   }
 
