@@ -1,8 +1,11 @@
 package uk.gov.hmrc.nonrep.attachment
 
+import akka.NotUsed
 import akka.actor.testkit.typed.scaladsl.ActorTestKit
 import akka.actor.typed.ActorSystem
-import akka.http.scaladsl.model.StatusCodes.NotFound
+import akka.http.scaladsl.model.ContentTypes.`application/json`
+import akka.http.scaladsl.model.HttpMethods.POST
+import akka.http.scaladsl.model.StatusCodes.{InternalServerError, NotFound, OK}
 import akka.http.scaladsl.model._
 import akka.stream.scaladsl.Flow
 import akka.util.ByteString
@@ -27,64 +30,52 @@ object TestServices {
     entity.dataBytes.runFold(ByteString(""))(_ ++ _).map(_.utf8String)
   }
 
-  object success {
-    implicit val successfulIndexing: Indexing[AttachmentRequestKey] = new Indexing[AttachmentRequestKey]() {
-      override def query(data: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig): HttpRequest =
-        data.toOption.map { value =>
+  // all operations succeed by default
+  trait TestIndexing extends Indexing[AttachmentRequestKey] {
+    override def query(data: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig): HttpRequest =
+      data.toOption
+        .map { value =>
           val path = Indexing.buildPath(config.notableEvents(value.apiKey))
-          val body = s"""{"query": {"bool":{"must":[{"match":{"attachmentIds":"${value.request.attachmentId}"}},{"ids":{"values":"${value.request.nrSubmissionId}"}}]}}}"""
-          HttpRequest(HttpMethods.POST, Uri(path), Nil, HttpEntity(ContentTypes.`application/json`, body))
-        }.getOrElse(HttpRequest())
-
-      override def run()(implicit system: ActorSystem[_], config: ServiceConfig)
-      : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] =
-        Flow[(HttpRequest, EitherErr[AttachmentRequestKey])].map {
-          case (_, request) => (Try(HttpResponse(StatusCodes.OK)), request)
+          val body =
+            s"""{"query": {"bool":{"must":[{"match":{"attachmentIds":"${value.request.attachmentId}"}},{"ids":{"values":"${value.request.nrSubmissionId}"}}]}}}"""
+          HttpRequest(POST, Uri(path), Nil, HttpEntity(`application/json`, body))
         }
+        .getOrElse(HttpRequest())
 
-      override def parse(value: EitherErr[AttachmentRequestKey], response: HttpResponse)(implicit system: ActorSystem[_]): Future[EitherErr[AttachmentRequestKey]] =
-        Future.successful(value)
-    }
+    override def run()(implicit system: ActorSystem[_], config: ServiceConfig)
+      : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] =
+      runAndReturn(OK)
+
+    override def parse(value: EitherErr[AttachmentRequestKey], response: HttpResponse)(
+      implicit system: ActorSystem[_]): Future[EitherErr[AttachmentRequestKey]] = Future.successful(value)
+
+    def runAndReturn(statusCode: StatusCode)
+      : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), NotUsed] =
+      Flow[(HttpRequest, EitherErr[AttachmentRequestKey])].map {
+        case (_, request) => (Try(HttpResponse(statusCode)), request)
+      }
+  }
+
+  object success {
+    implicit val successfulIndexing: Indexing[AttachmentRequestKey] = new TestIndexing() {}
+
     val flow: AttachmentFlow = new AttachmentFlow() {}
   }
 
   object failure {
-    implicit val indexingWithUpstreamFailureAndParsingError: Indexing[AttachmentRequestKey] = new Indexing[AttachmentRequestKey]() {
-      override def query(data: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig): HttpRequest =
-        data.toOption.map { value =>
-          val path = Indexing.buildPath(config.notableEvents(value.apiKey))
-          val body = s"""{"query": {"bool":{"must":[{"match":{"attachmentIds":"${value.request.attachmentId}"}},{"ids":{"values":"${value.request.nrSubmissionId}"}}]}}}"""
-          HttpRequest(HttpMethods.POST, Uri(path), Nil, HttpEntity(ContentTypes.`application/json`, body))
-        }.getOrElse(HttpRequest())
-
+    implicit val indexingWithUpstreamFailureAndParsingError: Indexing[AttachmentRequestKey] = new TestIndexing() {
       override def run()(implicit system: ActorSystem[_], config: ServiceConfig)
-      : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] =
-        Flow[(HttpRequest, EitherErr[AttachmentRequestKey])].map {
-          case (_, request) => (Try(HttpResponse(StatusCodes.InternalServerError)), request)
-        }
-
-      override def parse(value: EitherErr[AttachmentRequestKey], response: HttpResponse)(implicit system: ActorSystem[_]): Future[EitherErr[AttachmentRequestKey]] =
-        Future.successful(Left(ErrorMessage("nrSubmissionId validation error")))
+        : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] =
+        runAndReturn(InternalServerError)
     }
+
     val flow: AttachmentFlow = new AttachmentFlow() {}
   }
 
   object parseFailure {
-    implicit val indexingWithUpstreamFailureAndParsingError: Indexing[AttachmentRequestKey] = new Indexing[AttachmentRequestKey]() {
-      override def query(data: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig): HttpRequest =
-        data.toOption.map { value =>
-          val path = Indexing.buildPath(config.notableEvents(value.apiKey))
-          val body = s"""{"query": {"bool":{"must":[{"match":{"attachmentIds":"${value.request.attachmentId}"}},{"ids":{"values":"${value.request.nrSubmissionId}"}}]}}}"""
-          HttpRequest(HttpMethods.POST, Uri(path), Nil, HttpEntity(ContentTypes.`application/json`, body))
-        }.getOrElse(HttpRequest())
-
-      override def run()(implicit system: ActorSystem[_], config: ServiceConfig)
-      : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] =
-        Flow[(HttpRequest, EitherErr[AttachmentRequestKey])].map {
-          case (_, request) => (Try(HttpResponse(StatusCodes.OK)), request)
-        }
-
-      override def parse(value: EitherErr[AttachmentRequestKey], response: HttpResponse)(implicit system: ActorSystem[_]): Future[EitherErr[AttachmentRequestKey]] =
+    implicit val indexingWithUpstreamFailureAndParsingError: Indexing[AttachmentRequestKey] = new TestIndexing() {
+      override def parse(value: EitherErr[AttachmentRequestKey], response: HttpResponse)(
+        implicit system: ActorSystem[_]): Future[EitherErr[AttachmentRequestKey]] =
         Future.successful(Left(ErrorMessage("nrSubmissionId validation error")))
     }
 
@@ -92,21 +83,13 @@ object TestServices {
   }
 
   object notFound {
-    implicit val indexingWitNotFoundError: Indexing[AttachmentRequestKey] = new Indexing[AttachmentRequestKey]() {
-      override def query(data: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig): HttpRequest =
-        data.toOption.map { value =>
-          val path = Indexing.buildPath(config.notableEvents(value.apiKey))
-          val body = s"""{"query": {"bool":{"must":[{"match":{"attachmentIds":"${value.request.attachmentId}"}},{"ids":{"values":"${value.request.nrSubmissionId}"}}]}}}"""
-          HttpRequest(HttpMethods.POST, Uri(path), Nil, HttpEntity(ContentTypes.`application/json`, body))
-        }.getOrElse(HttpRequest())
-
+    implicit val indexingWitNotFoundError: Indexing[AttachmentRequestKey] = new TestIndexing() {
       override def run()(implicit system: ActorSystem[_], config: ServiceConfig)
-      : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] =
-        Flow[(HttpRequest, EitherErr[AttachmentRequestKey])].map {
-          case (_, request) => (Try(HttpResponse(NotFound)), request)
-        }
+        : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] =
+        runAndReturn(NotFound)
 
-      override def parse(value: EitherErr[AttachmentRequestKey], response: HttpResponse)(implicit system: ActorSystem[_]): Future[EitherErr[AttachmentRequestKey]] =
+      override def parse(value: EitherErr[AttachmentRequestKey], response: HttpResponse)(
+        implicit system: ActorSystem[_]): Future[EitherErr[AttachmentRequestKey]] =
         Indexing.defaultIndexingService.parse(value, response)(system)
     }
 
