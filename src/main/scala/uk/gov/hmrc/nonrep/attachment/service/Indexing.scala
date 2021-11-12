@@ -25,12 +25,13 @@ import scala.concurrent.Future
 import scala.util.Try
 
 trait Request[A] {
-  def query(data: EitherErr[A])(implicit config: ServiceConfig): HttpRequest
+  def query(data: EitherErr[A])(implicit config: ServiceConfig, system: ActorSystem[_]): HttpRequest
 }
 
 trait Call[A] {
-  def run()(implicit system: ActorSystem[_], config: ServiceConfig)
-  : Flow[(HttpRequest, EitherErr[A]), (Try[HttpResponse], EitherErr[A]), Any]
+  def run()(
+    implicit system: ActorSystem[_],
+    config: ServiceConfig): Flow[(HttpRequest, EitherErr[A]), (Try[HttpResponse], EitherErr[A]), Any]
 }
 
 trait Response[A] {
@@ -40,7 +41,6 @@ trait Response[A] {
 trait Indexing[A] extends Request[A] with Call[A] with Response[A] {}
 
 object Indexing {
-
   object Request {
     def apply[A](implicit service: Request[A]): Request[A] = service
   }
@@ -56,12 +56,13 @@ object Indexing {
   object ops {
 
     implicit class RequestOps[A: Request](value: EitherErr[A]) {
-      def query()(implicit config: ServiceConfig): HttpRequest = Request[A].query(value)
+      def query()(implicit config: ServiceConfig, system: ActorSystem[_]): HttpRequest = Request[A].query(value)
     }
 
     implicit class CallOps[A: Call](value: EitherErr[A]) {
-      def flow()(implicit system: ActorSystem[_], config: ServiceConfig)
-      : Flow[(HttpRequest, EitherErr[A]), (Try[HttpResponse], EitherErr[A]), Any] = Call[A].run()
+      def flow()(
+        implicit system: ActorSystem[_],
+        config: ServiceConfig): Flow[(HttpRequest, EitherErr[A]), (Try[HttpResponse], EitherErr[A]), Any] = Call[A].run()
     }
 
     implicit class ResponseOps[A: Response](value: EitherErr[A]) {
@@ -72,32 +73,37 @@ object Indexing {
   }
 
   implicit val defaultIndexingService: Indexing[AttachmentRequestKey] = new Indexing[AttachmentRequestKey] {
-    override def run()(implicit system: ActorSystem[_], config: ServiceConfig):
-    Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] =
+    override def run()(implicit system: ActorSystem[_], config: ServiceConfig)
+      : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] =
       if (config.isElasticSearchProtocolSecure)
         Http().cachedHostConnectionPoolHttps[EitherErr[AttachmentRequestKey]](config.elasticSearchHost)
       else
         Http().cachedHostConnectionPool[EitherErr[AttachmentRequestKey]](config.elasticSearchHost)
 
-    override def query(data: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig): HttpRequest = {
-      data
-        .toOption
+    override def query(data: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig, system: ActorSystem[_]): HttpRequest =
+      data.toOption
         .flatMap(value => config.notableEvents.get(value.apiKey).map(notableEvents => (value, notableEvents)))
         .map {
-          case (value, notableEvents) =>
+          case (attachmentRequestKey: AttachmentRequestKey, notableEvents) =>
             import RequestsSigner._
-            val path = buildPath(notableEvents)
-            val body = s"""{"query": {"bool":{"must":[{"match":{"attachmentIds.keyword":"${value.request.attachmentId}"}},{"ids":{"values":"${value.request.nrSubmissionId}"}}]}}}"""
-            createSignedRequest(HttpMethods.POST, config.elasticSearchUri, path, body)
-        }.getOrElse(HttpRequest())
-    }
 
-    override def parse(value: EitherErr[AttachmentRequestKey], response: HttpResponse)(implicit system: ActorSystem[_]): Future[EitherErr[AttachmentRequestKey]] = {
+            val path = buildPath(notableEvents)
+            val body =
+              s"""{"query": {"bool":{"must":[{"match":{"attachmentIds.keyword":"${attachmentRequestKey.request.attachmentId}"}},{"ids":{"values":"${attachmentRequestKey.request.nrSubmissionId}"}}]}}}"""
+            val request = createSignedRequest(HttpMethods.POST, config.elasticSearchUri, path, body)
+
+            system.log.info(
+              s"query for attachmentRequestKey: [$attachmentRequestKey] and notableEvents: [$notableEvents] produced path: [$path], body: [$body] and request: [$request]")
+
+            request
+        }
+        .getOrElse(HttpRequest())
+
+    override def parse(value: EitherErr[AttachmentRequestKey], response: HttpResponse)(
+      implicit system: ActorSystem[_]): Future[EitherErr[AttachmentRequestKey]] =
       if (response.status == StatusCodes.OK) {
         import system.executionContext
-        response
-          .entity
-          .dataBytes
+        response.entity.dataBytes
           .runFold(ByteString.empty)(_ ++ _)
           .map(_.utf8String)
           .map(_.parseJson)
@@ -105,11 +111,13 @@ object Indexing {
           .map(Right(_).withLeft[ErrorMessage])
           .map(_.filterOrElse(_.hits.total == 1, ErrorMessage("Invalid nrSubmissionId")).flatMap(_ => value))
       } else {
+        system.log.error(s"Response status ${response.status} received rom ES server for request: [$value]. Full response is: [$response]")
+
         val error = ErrorMessage(s"Response status ${response.status} from ES server", StatusCodes.InternalServerError)
+
         response.discardEntityBytes()
         Future.successful(Left(error))
       }
-    }
   }
 
   def buildPath(notableEvent: Set[String]) = s"/${notableEvent.map(_.concat("-attachments")).mkString(",")}/_search"
@@ -118,7 +126,12 @@ object Indexing {
 object RequestsSigner {
   private lazy val signer = Aws4Signer.create()
 
-  def createSignedRequest(method: HttpMethod, uri: URI, path: String, body: String, credsProvider: AwsCredentialsProvider = DefaultCredentialsProvider.create()): HttpRequest = {
+  def createSignedRequest(
+    method: HttpMethod,
+    uri: URI,
+    path: String,
+    body: String,
+    credsProvider: AwsCredentialsProvider = DefaultCredentialsProvider.create()): HttpRequest = {
 
     import scala.jdk.CollectionConverters._
 
