@@ -111,10 +111,9 @@ object Indexing {
           .map(Right(_).withLeft[ErrorMessage])
           .map(_.filterOrElse(_.hits.total == 1, ErrorMessage("Invalid nrSubmissionId")).flatMap(_ => value))
       } else {
-        val error =
-          ErrorMessage(
-            s"Response status ${response.status} from ES server for request: [$value]. Full response is: [$response]",
-            StatusCodes.InternalServerError)
+        system.log.error(s"Response status ${response.status} received rom ES server for request: [$value]. Full response is: [$response]")
+
+        val error = ErrorMessage(s"Response status ${response.status} from ES server", StatusCodes.InternalServerError)
 
         response.discardEntityBytes()
         Future.successful(Left(error))
