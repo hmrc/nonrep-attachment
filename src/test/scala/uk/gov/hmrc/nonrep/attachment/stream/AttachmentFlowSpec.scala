@@ -1,8 +1,6 @@
 package uk.gov.hmrc.nonrep.attachment
 package stream
 
-import java.util.UUID
-
 import akka.actor.typed.ActorSystem
 import akka.http.scaladsl.model.{HttpMethods, HttpRequest, HttpResponse}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
@@ -12,8 +10,8 @@ import org.scalatest.concurrent.ScalaFutures
 import spray.json._
 import uk.gov.hmrc.nonrep.attachment.TestServices.testKit
 import uk.gov.hmrc.nonrep.attachment.models.{AttachmentRequest, AttachmentRequestKey, IncomingRequest}
-import uk.gov.hmrc.nonrep.attachment.server.ServiceConfig
 
+import java.util.UUID
 import scala.util.Try
 
 class AttachmentFlowSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
@@ -113,8 +111,7 @@ class AttachmentFlowSpec extends BaseSpec with ScalaFutures with ScalatestRouteT
   }
 
   "for negative scenario" should {
-    import TestServices._
-    import TestServices.failure._
+    import TestServices.parseFailure._
 
     "fail on ES upstream failure" in {
       val attachmentId = UUID.randomUUID().toString
