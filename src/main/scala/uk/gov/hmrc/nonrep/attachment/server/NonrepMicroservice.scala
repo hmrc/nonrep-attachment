@@ -4,6 +4,8 @@ package server
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.Behaviors
 import akka.http.scaladsl.Http
+import fr.davit.akka.http.metrics.core.HttpMetrics._
+import uk.gov.hmrc.nonrep.attachment.metrics.Prometheus
 import uk.gov.hmrc.nonrep.attachment.stream.AttachmentFlow
 
 import scala.concurrent.Future
@@ -17,7 +19,9 @@ class NonrepMicroservice(routes: Routes)(implicit val system: ActorSystem[_], co
 
   import system.executionContext
 
-  val serverBinding: Future[Http.ServerBinding] = Http().newServerAt("0.0.0.0", config.port).bind(routes.serviceRoutes)
+  val serverBinding: Future[Http.ServerBinding] =
+    Http().newMeteredServerAt("0.0.0.0", config.servicePort, Prometheus.registry).bind(routes.serviceRoutes)
+
   serverBinding.onComplete {
     case Success(binding) =>
       val address = binding.localAddress
