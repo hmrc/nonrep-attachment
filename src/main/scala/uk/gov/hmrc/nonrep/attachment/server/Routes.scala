@@ -52,6 +52,8 @@ class Routes(flow: AttachmentFlow)(implicit val system: ActorSystem[_], config: 
               headerValueByName(headerApiKey) { apiKey =>
 
                 entity(asSourceOf[JsValue]) { request =>
+                  val attachmentResponseTimer = attachmentResponseTimesHistogram.startTimer()
+
                   val stream = request
                     .log(name = "attachmentFlow")
                     .addAttributes(logLevels(onElement = Off, onFinish = Info, onFailure = Error))
@@ -60,21 +62,19 @@ class Routes(flow: AttachmentFlow)(implicit val system: ActorSystem[_], config: 
                     .toMat(Sink.head)(Keep.right)
                     .run()
 
-//                  val timer = elasticSearchQueryResponseTimesHistogram.startTimer()
-
                   onComplete(stream) {
                     case Success(result) =>
                       result.fold[StandardRoute](
                         err => {
                           log.error("Attachment service error {}", err)
                           attachmentFailureCounter.labels(err.code.intValue.toString).inc()
-                          //timer.observeDuration()
+                          attachmentResponseTimer.observeDuration()
                           err.completeAsJson()
                         },
                         res => {
                           complete {
                             attachmentSuccessCounter.inc()
-                            //timer.observeDuration()
+                            attachmentResponseTimer.observeDuration()
                             HttpResponse(Accepted, entity = HttpEntity(AttachmentResponse(res.attachmentId).toJson.toString))
                           }
                         }
@@ -83,7 +83,7 @@ class Routes(flow: AttachmentFlow)(implicit val system: ActorSystem[_], config: 
                       val message = "Internal NRS error"
                       log.error(s"$message, caused by ${x.getCause}", x)
                       attachmentFailureCounter.labels(InternalServerError.intValue.toString).inc()
-                      //timer.observeDuration()
+                      attachmentResponseTimer.observeDuration()
                       ErrorMessage(message, InternalServerError).completeAsJson()
                   }
                 }
