@@ -43,8 +43,8 @@ object Prometheus {
   val attachmentResponseTimesHistogram: Histogram =
     histogram("attachment_response_times", "Time spent responding to attachment requests")
 
-//  val elasticSearchQueryResponseTimesHistogram: Histogram =
-//    histogram("attachment_elasticSearch_query_response_times", "Time ElasticSearch spent responding to queries for attachment requests")
+  val elasticSearchQueryResponseTimesHistogram: Histogram =
+    histogram("attachment_elastic_search_query_response_times", "Time ElasticSearch spent responding to queries for attachment requests")
 
   private def counter(name: String, help: String) = Counter.build().name(name).help(help)
 
