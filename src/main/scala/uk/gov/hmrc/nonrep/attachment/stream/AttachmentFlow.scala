@@ -3,7 +3,7 @@ package stream
 
 import akka.NotUsed
 import akka.actor.typed.ActorSystem
-import akka.http.scaladsl.model.{HttpRequest, HttpResponse, StatusCodes}
+import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
 import akka.stream.Supervision._
 import akka.stream.scaladsl.{Flow, GraphDSL}
 import akka.stream.{ActorAttributes, FlowShape}

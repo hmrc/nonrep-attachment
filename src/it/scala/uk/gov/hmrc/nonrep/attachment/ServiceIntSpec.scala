@@ -53,10 +53,9 @@ class ServiceIntSpec extends BaseSpec with ScalatestRouteTest with ScalaFutures 
   private val versionRequest = HttpRequest(uri = s"$hostUrl/${config.appName}/version")
   private val metricsRequest = HttpRequest(uri = s"$hostUrl/metrics")
   private val metricPrefix = "# TYPE"
-  private val implicitMetricPrefix = s"$metricPrefix attachment"
+  private val serviceMetricPrefix = s"$metricPrefix attachment"
 
   private def metricsFrom(body: String) = body.split('\n').filter(_.startsWith(metricPrefix))
-
 
   "attachment service service" should {
 
@@ -120,7 +119,7 @@ class ServiceIntSpec extends BaseSpec with ScalatestRouteTest with ScalaFutures 
         response.status shouldBe OK
 
         whenReady(entityToString(response.entity)) { body =>
-          val jvmMetrics = metricsFrom(body).filterNot(_.startsWith(implicitMetricPrefix))
+          val jvmMetrics = metricsFrom(body).filterNot(_.startsWith(serviceMetricPrefix))
 
           //jvmMetrics can vary slightly between executions
           jvmMetrics should contain allElementsOf Seq(
@@ -187,7 +186,7 @@ class ServiceIntSpec extends BaseSpec with ScalatestRouteTest with ScalaFutures 
       }
     }
 
-    "return implicit metrics" when {
+    "return implicit and explicit service metrics" when {
       "a service request has been made" in {
         whenReady(Http().singleRequest(versionRequest)) { versionResponse =>
           versionResponse.status shouldBe OK
@@ -196,20 +195,26 @@ class ServiceIntSpec extends BaseSpec with ScalatestRouteTest with ScalaFutures 
             metricsResponse.status shouldBe OK
 
             whenReady(entityToString(metricsResponse.entity)) { body: String =>
-              val implicitMetrics = metricsFrom(body).filter(_.startsWith(implicitMetricPrefix))
+              val serviceMetrics = metricsFrom(body).filter(_.startsWith(serviceMetricPrefix))
 
-              implicitMetrics.toSet shouldBe Set(
-                s"${implicitMetricPrefix}_requests_active gauge",
-                s"${implicitMetricPrefix}_requests_created gauge",
-                s"${implicitMetricPrefix}_requests_size_bytes_created gauge",
-                s"${implicitMetricPrefix}_requests_size_bytes summary",
-                s"${implicitMetricPrefix}_requests_total counter",
-                s"${implicitMetricPrefix}_responses_created gauge",
-                s"${implicitMetricPrefix}_responses_duration_seconds histogram",
-                s"${implicitMetricPrefix}_responses_duration_seconds_created gauge",
-                s"${implicitMetricPrefix}_responses_size_bytes summary",
-                s"${implicitMetricPrefix}_responses_size_bytes_created gauge",
-                s"${implicitMetricPrefix}_responses_total counter"
+              serviceMetrics.toSet shouldBe Set(
+                s"${serviceMetricPrefix}_success_created gauge",
+                s"${serviceMetricPrefix}_success_total counter",
+                s"${serviceMetricPrefix}_failure_created gauge",
+                s"${serviceMetricPrefix}_failure_total counter",
+//                s"${serviceMetricPrefix}_response_times histogram",
+//                s"${serviceMetricPrefix}_elastic_search_query_response_times histogram",
+                s"${serviceMetricPrefix}_requests_active gauge",
+                s"${serviceMetricPrefix}_requests_created gauge",
+                s"${serviceMetricPrefix}_requests_size_bytes_created gauge",
+                s"${serviceMetricPrefix}_requests_size_bytes summary",
+                s"${serviceMetricPrefix}_requests_total counter",
+                s"${serviceMetricPrefix}_responses_created gauge",
+                s"${serviceMetricPrefix}_responses_duration_seconds histogram",
+                s"${serviceMetricPrefix}_responses_duration_seconds_created gauge",
+                s"${serviceMetricPrefix}_responses_size_bytes summary",
+                s"${serviceMetricPrefix}_responses_size_bytes_created gauge",
+                s"${serviceMetricPrefix}_responses_total counter"
               )
             }
           }

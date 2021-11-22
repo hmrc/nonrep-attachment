@@ -33,7 +33,7 @@ class Routes(flow: AttachmentFlow)(implicit val system: ActorSystem[_], config: 
 
   import ResponseService.ops._
 
-  implicit val jsonStreamingSupport: JsonEntityStreamingSupport = EntityStreamingSupport.json()
+  private implicit val jsonStreamingSupport: JsonEntityStreamingSupport = EntityStreamingSupport.json()
   private val headerApiKey = "x-api-key"
 
   private val log = system.log
@@ -60,15 +60,21 @@ class Routes(flow: AttachmentFlow)(implicit val system: ActorSystem[_], config: 
                     .toMat(Sink.head)(Keep.right)
                     .run()
 
+//                  val timer = elasticSearchQueryResponseTimesHistogram.startTimer()
+
                   onComplete(stream) {
                     case Success(result) =>
                       result.fold[StandardRoute](
                         err => {
                           log.error("Attachment service error {}", err)
+                          attachmentFailureCounter.labels(err.code.intValue.toString).inc()
+                          //timer.observeDuration()
                           err.completeAsJson()
                         },
                         res => {
                           complete {
+                            attachmentSuccessCounter.inc()
+                            //timer.observeDuration()
                             HttpResponse(Accepted, entity = HttpEntity(AttachmentResponse(res.attachmentId).toJson.toString))
                           }
                         }
@@ -76,6 +82,8 @@ class Routes(flow: AttachmentFlow)(implicit val system: ActorSystem[_], config: 
                     case Failure(x) =>
                       val message = "Internal NRS error"
                       log.error(s"$message, caused by ${x.getCause}", x)
+                      attachmentFailureCounter.labels(InternalServerError.intValue.toString).inc()
+                      //timer.observeDuration()
                       ErrorMessage(message, InternalServerError).completeAsJson()
                   }
                 }
