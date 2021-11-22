@@ -62,29 +62,32 @@ class Routes(flow: AttachmentFlow)(implicit val system: ActorSystem[_], config: 
                     .toMat(Sink.head)(Keep.right)
                     .run()
 
-                  onComplete(stream) {
-                    case Success(result) =>
-                      result.fold[StandardRoute](
-                        err => {
-                          log.error("Attachment service error {}", err)
-                          attachmentFailureCounter.labels(err.code.intValue.toString).inc()
-                          attachmentResponseTimer.observeDuration()
-                          err.completeAsJson()
-                        },
-                        res => {
-                          complete {
-                            attachmentSuccessCounter.inc()
-                            attachmentResponseTimer.observeDuration()
-                            HttpResponse(Accepted, entity = HttpEntity(AttachmentResponse(res.attachmentId).toJson.toString))
+                  onComplete(stream) { completion =>
+                    val response = completion match {
+                      case Success(result) =>
+                        result.fold[StandardRoute](
+                          err => {
+                            log.error("Attachment service error {}", err)
+                            attachmentFailureCounter.labels(err.code.intValue.toString).inc()
+                            err.completeAsJson()
+                          },
+                          res => {
+                            complete {
+                              attachmentSuccessCounter.inc()
+                              HttpResponse(Accepted, entity = HttpEntity(AttachmentResponse(res.attachmentId).toJson.toString))
+                            }
                           }
-                        }
-                      )
-                    case Failure(x) =>
-                      val message = "Internal NRS error"
-                      log.error(s"$message, caused by ${x.getCause}", x)
-                      attachmentFailureCounter.labels(InternalServerError.intValue.toString).inc()
-                      attachmentResponseTimer.observeDuration()
-                      ErrorMessage(message, InternalServerError).completeAsJson()
+                        )
+                      case Failure(x) =>
+                        val message = "Internal NRS error"
+                        log.error(s"$message, caused by ${x.getCause}", x)
+                        attachmentFailureCounter.labels(InternalServerError.intValue.toString).inc()
+                        ErrorMessage(message, InternalServerError).completeAsJson()
+                    }
+
+                    attachmentResponseTimer.observeDuration()
+
+                    response
                   }
                 }
               }
