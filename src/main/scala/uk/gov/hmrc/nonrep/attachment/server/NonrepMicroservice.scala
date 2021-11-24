@@ -5,9 +5,10 @@ import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.Behaviors
 import akka.http.scaladsl.Http
 import uk.gov.hmrc.nonrep.attachment.stream.AttachmentFlow
-
+import fr.davit.akka.http.metrics.core.HttpMetrics._
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
+import uk.gov.hmrc.nonrep.attachment.metrics.Prometheus._
 
 object NonrepMicroservice {
   def apply(routes: Routes)(implicit system: ActorSystem[_], config: ServiceConfig) = new NonrepMicroservice(routes)
@@ -17,7 +18,7 @@ class NonrepMicroservice(routes: Routes)(implicit val system: ActorSystem[_], co
 
   import system.executionContext
 
-  val serverBinding: Future[Http.ServerBinding] = Http().newServerAt("0.0.0.0", config.port).bind(routes.serviceRoutes)
+  val serverBinding: Future[Http.ServerBinding] = Http().newMeteredServerAt("0.0.0.0", config.port, registry).bind(routes.serviceRoutes)
   serverBinding.onComplete {
     case Success(binding) =>
       val address = binding.localAddress

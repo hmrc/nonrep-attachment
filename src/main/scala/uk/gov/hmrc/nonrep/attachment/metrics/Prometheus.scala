@@ -7,6 +7,8 @@ import io.prometheus.client.CollectorRegistry
 import io.prometheus.client.dropwizard.DropwizardExports
 import io.prometheus.client.hotspot.DefaultExports
 import uk.gov.hmrc.nonrep.attachment.server.Main.config
+import io.prometheus.client.CollectorRegistry.defaultRegistry
+import io.prometheus.client.{Counter, Histogram}
 
 object Prometheus {
 
@@ -32,4 +34,23 @@ object Prometheus {
     prometheus.register(new DropwizardExports(registry))
     PrometheusRegistry(prometheus, settings)
   }
+
+  private val defaultHistogramBuckets =
+    List(.1, .2, .3, .4, .5, .6, .7, .8, .9, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5, 10.0, 20.0)
+
+  val esDuration: Histogram = Histogram
+    .build()
+    .name(s"${config.appName}_es_requests_processing_time")
+    .help("Time spent processing ES requests")
+    .labelNames("es_requests_processing")
+    .buckets(defaultHistogramBuckets: _*)
+    .register()
+
+  val esCounter: Counter = Counter
+    .build()
+    .name(s"${config.appName}_es_requests_total")
+    .help("Total number of ES requests")
+    .labelNames("status_code")
+    .register()
+
 }

@@ -110,6 +110,14 @@ class AttachmentFlowSpec extends BaseSpec with ScalaFutures with ScalatestRouteT
       result.toOption.get.nrSubmissionId shouldBe submissionId
     }
 
+    "start Es metrics collection" in {
+
+    }
+
+    "collect Es metrics" in {
+
+    }
+
   }
 
   "for negative scenario" should {

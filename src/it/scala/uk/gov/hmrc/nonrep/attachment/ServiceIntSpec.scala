@@ -178,5 +178,29 @@ class ServiceIntSpec extends BaseSpec with ScalatestRouteTest with ScalaFutures 
         }
       }
     }
+
+    "return metrics" in {
+      val responseFuture: Future[HttpResponse] = Http().singleRequest(HttpRequest(uri = s"$hostUrl/metrics"))
+      whenReady(responseFuture) { res =>
+        res.status shouldBe StatusCodes.OK
+        whenReady(entityToString(res.entity)) { body =>
+          body
+            .split('\n')
+            .filter(_.startsWith("# TYPE ")) should contain allElementsOf Seq(
+            "# TYPE attachment_responses_duration_seconds histogram",
+            "# TYPE attachment_requests_total counter",
+            "# TYPE attachment_responses_total counter",
+            "# TYPE attachment_responses_size_bytes summary",
+            "# TYPE attachment_requests_active gauge",
+            "# TYPE attachment_requests_size_bytes summary",
+            "# TYPE attachment_requests_created gauge",
+            "# TYPE attachment_requests_size_bytes_created gauge",
+            "# TYPE attachment_responses_created gauge",
+            "# TYPE attachment_responses_duration_seconds_created gauge",
+            "# TYPE attachment_responses_size_bytes_created gauge"
+          )
+        }
+      }
+    }
   }
 }
