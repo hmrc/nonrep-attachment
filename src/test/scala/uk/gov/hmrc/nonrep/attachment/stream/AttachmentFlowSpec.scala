@@ -11,6 +11,7 @@ import akka.stream.testkit.scaladsl.{TestSink, TestSource}
 import org.scalatest.concurrent.ScalaFutures
 import spray.json._
 import uk.gov.hmrc.nonrep.attachment.TestServices.testKit
+import uk.gov.hmrc.nonrep.attachment.metrics.Prometheus.esCounter
 import uk.gov.hmrc.nonrep.attachment.models.{AttachmentRequest, AttachmentRequestKey, IncomingRequest}
 import uk.gov.hmrc.nonrep.attachment.server.ServiceConfig
 
@@ -92,6 +93,25 @@ class AttachmentFlowSpec extends BaseSpec with ScalaFutures with ScalatestRouteT
       result.toOption.get.nrSubmissionId shouldBe submissionId
     }
 
+    "collect Es metrics" in {
+      val attachmentId = UUID.randomUUID().toString
+      val submissionId = UUID.randomUUID().toString
+      val source = TestSource.probe[EitherErr[AttachmentRequestKey]]
+      val sink = TestSink.probe[EitherErr[AttachmentRequestKey]]
+      val (pub, sub) = source.via(flow.collectEsMetrics).toMat(sink)(Keep.both).run()
+      pub
+        .sendNext(Right(AttachmentRequestKey(apiKey, validAttachmentRequest(attachmentId, submissionId))))
+        .sendComplete()
+      val result = sub
+        .request(1)
+        .expectNext()
+
+      result.isRight shouldBe true
+      result.toOption.get.request.attachmentId shouldBe attachmentId
+      result.toOption.get.request.nrSubmissionId shouldBe submissionId
+      esCounter.labels("2xx").get() shouldBe 1.0d
+    }
+
     "validate attachments flow" in {
       val attachmentId = UUID.randomUUID().toString
       val submissionId = UUID.randomUUID().toString
@@ -114,15 +134,28 @@ class AttachmentFlowSpec extends BaseSpec with ScalaFutures with ScalatestRouteT
 
     }
 
-    "collect Es metrics" in {
-
-    }
-
   }
 
   "for negative scenario" should {
     import TestServices._
     import TestServices.failure._
+
+    "collect Es metrics for failing response" in {
+      val attachmentId = UUID.randomUUID().toString
+      val submissionId = UUID.randomUUID().toString
+      val source = TestSource.probe[EitherErr[AttachmentRequestKey]]
+      val sink = TestSink.probe[EitherErr[AttachmentRequestKey]]
+      val (pub, sub) = source.via(flow.collectEsMetrics).toMat(sink)(Keep.both).run()
+      pub
+        .sendNext(Left(ErrorMessage("error")))
+        .sendComplete()
+      val result = sub
+        .request(1)
+        .expectNext()
+
+      result.isLeft shouldBe true
+      esCounter.labels("5xx").get() shouldBe 1.0d
+    }
 
     "fail on ES upstream failure" in {
       val attachmentId = UUID.randomUUID().toString
