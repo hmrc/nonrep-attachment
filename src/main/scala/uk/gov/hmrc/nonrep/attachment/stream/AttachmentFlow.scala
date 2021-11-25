@@ -3,7 +3,7 @@ package stream
 
 import akka.NotUsed
 import akka.actor.typed.ActorSystem
-import akka.http.scaladsl.model.{HttpRequest, HttpResponse, StatusCodes}
+import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
 import akka.stream.Supervision._
 import akka.stream.scaladsl.{Flow, GraphDSL}
 import akka.stream.{ActorAttributes, FlowShape}
@@ -12,7 +12,6 @@ import uk.gov.hmrc.nonrep.attachment.models.{AttachmentRequest, AttachmentReques
 import uk.gov.hmrc.nonrep.attachment.server.ServiceConfig
 import uk.gov.hmrc.nonrep.attachment.service.Indexing
 import uk.gov.hmrc.nonrep.attachment.utils.JsonFormats._
-import uk.gov.hmrc.nonrep.attachment.service.StatusCodeService
 import scala.concurrent.Future
 import scala.util.{Failure, Success, Try}
 
@@ -28,8 +27,6 @@ class AttachmentFlow()(implicit val system: ActorSystem[_],
                        es: Indexing[AttachmentRequestKey]) {
 
   import Indexing.ops._
-  import StatusCodeService.ops._
-
   private val log = system.log
   val validateAttachmentRequest:
     Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] = es.run()
@@ -60,22 +57,20 @@ class AttachmentFlow()(implicit val system: ActorSystem[_],
       value => value.map(_.request)
     }
 
-  val startEsMetrics: Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (HttpRequest, EitherErr[AttachmentRequestKey]), NotUsed] =
+ /* val startEsMetrics: Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (HttpRequest, EitherErr[AttachmentRequestKey]), NotUsed] =
     Flow[(HttpRequest, EitherErr[AttachmentRequestKey])].map {
       ???
-    }
+    }*/
 
   val collectEsMetrics: Flow[EitherErr[AttachmentRequestKey], EitherErr[AttachmentRequestKey], NotUsed] =
     Flow[EitherErr[AttachmentRequestKey]].map {
-      _ match { //TODO: replace with flatMap or something else
-        case Left(x) => {
-          esCounter.labels(x.code.complete()).inc()
-          Left(x)
-        }
-        case Right(x) => {
-          esCounter.labels(StatusCodes.OK.complete()).inc()
-          Right(x)
-        }
+      value => value.map   {
+       attachment => {esCounter.labels("2xx").inc()
+       attachment
+       }
+      }.left .map {
+        error => {esCounter.labels("5xx").inc()
+        error}
       }
     }
 
@@ -87,7 +82,7 @@ class AttachmentFlow()(implicit val system: ActorSystem[_],
         val validationShape = builder.add(validateRequest)
         val responseShape = builder.add(remapAttachmentRequestKey)
 
-        validationShape ~> createEsRequest ~> startEsMetrics ~> validateAttachmentRequest ~> parseEsResponse ~> collectEsMetrics ~> responseShape.in
+        validationShape ~> createEsRequest ~> validateAttachmentRequest ~> parseEsResponse ~> collectEsMetrics ~> responseShape.in
 
         FlowShape(validationShape.in, responseShape.out)
       }
