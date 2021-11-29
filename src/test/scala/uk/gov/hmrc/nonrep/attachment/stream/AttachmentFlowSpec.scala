@@ -13,7 +13,6 @@ import spray.json._
 import uk.gov.hmrc.nonrep.attachment.TestServices.testKit
 import uk.gov.hmrc.nonrep.attachment.metrics.Prometheus.esCounter
 import uk.gov.hmrc.nonrep.attachment.models.{AttachmentRequest, AttachmentRequestKey, IncomingRequest}
-import uk.gov.hmrc.nonrep.attachment.server.ServiceConfig
 
 import scala.util.Try
 
@@ -112,6 +111,22 @@ class AttachmentFlowSpec extends BaseSpec with ScalaFutures with ScalatestRouteT
       esCounter.labels("2xx").get() shouldBe 1.0d
     }
 
+    "collect Es metrics histogram" in {
+      val attachmentId = UUID.randomUUID().toString
+      val submissionId = UUID.randomUUID().toString
+      val source = TestSource.probe[(HttpRequest, EitherErr[AttachmentRequestKey])]
+      val sink = TestSink.probe[Double]
+      val (pub, sub) = source.via(flow.startEsMetrics).via(flow.finishEsMetrics).toMat(sink)(Keep.both).run()
+      pub
+        .sendNext((HttpRequest(), Right(AttachmentRequestKey(apiKey, validAttachmentRequest(attachmentId, submissionId)))))
+        .sendComplete()
+      val result = sub
+        .request(1)
+        .expectNext()
+
+      result should be > 0d
+    }
+
     "validate attachments flow" in {
       val attachmentId = UUID.randomUUID().toString
       val submissionId = UUID.randomUUID().toString
@@ -130,14 +145,9 @@ class AttachmentFlowSpec extends BaseSpec with ScalaFutures with ScalatestRouteT
       result.toOption.get.nrSubmissionId shouldBe submissionId
     }
 
-    "start Es metrics collection" in {
-
-    }
-
   }
 
   "for negative scenario" should {
-    import TestServices._
     import TestServices.failure._
 
     "collect Es metrics for failing response" in {

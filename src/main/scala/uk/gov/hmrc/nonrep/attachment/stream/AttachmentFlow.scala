@@ -5,9 +5,10 @@ import akka.NotUsed
 import akka.actor.typed.ActorSystem
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
 import akka.stream.Supervision._
-import akka.stream.scaladsl.{Flow, GraphDSL}
+import akka.stream.scaladsl.{Broadcast, Flow, GraphDSL, Merge, Partition, Sink, ZipWith}
 import akka.stream.{ActorAttributes, FlowShape}
-import uk.gov.hmrc.nonrep.attachment.metrics.Prometheus.esCounter
+import io.prometheus.client.Histogram
+import uk.gov.hmrc.nonrep.attachment.metrics.Prometheus.{esCounter, esDuration}
 import uk.gov.hmrc.nonrep.attachment.models.{AttachmentRequest, AttachmentRequestKey, IncomingRequest}
 import uk.gov.hmrc.nonrep.attachment.server.ServiceConfig
 import uk.gov.hmrc.nonrep.attachment.service.Indexing
@@ -23,7 +24,7 @@ object AttachmentFlow {
 class AttachmentFlow()(implicit val system: ActorSystem[_], config: ServiceConfig, es: Indexing[AttachmentRequestKey]) {
 
   import Indexing.ops._
-  private val log = system.log
+
   val validateAttachmentRequest
     : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] = es.run()
 
@@ -54,38 +55,61 @@ class AttachmentFlow()(implicit val system: ActorSystem[_], config: ServiceConfi
       value.map(_.request)
     }
 
-  /* val startEsMetrics: Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (HttpRequest, EitherErr[AttachmentRequestKey]), NotUsed] =
-    Flow[(HttpRequest, EitherErr[AttachmentRequestKey])].map {
-      ???
-    }*/
+  val startEsMetrics: Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), Histogram.Timer, NotUsed] =
+    Flow[(HttpRequest, EitherErr[AttachmentRequestKey])].map { _ =>
+      esDuration.labels("es_processing").startTimer()
+    }
+
+  val finishEsMetrics: Flow[Histogram.Timer, Double, NotUsed] =
+    Flow[Histogram.Timer].map {
+      _.observeDuration()
+    }
 
   val collectEsMetrics: Flow[EitherErr[AttachmentRequestKey], EitherErr[AttachmentRequestKey], NotUsed] =
     Flow[EitherErr[AttachmentRequestKey]].map { value =>
-      value
-        .map { attachment =>
-          {
-            esCounter.labels("2xx").inc()
-            attachment
-          }
-        }
-        .left
-        .map { error =>
-          {
-            esCounter.labels("5xx").inc()
-            error
-          }
-        }
+      {
+        esCounter.labels(value.fold(_ => "5xx", _ => "2xx")).inc()
+        value
+      }
     }
 
+  private def partitionRequests[A]() =
+    Partition[EitherErr[A]](2, {
+      case Left(_)  => 0
+      case Right(_) => 1
+    })
+
+  /**
+  partitionEsCalls |~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>|
+			             |~> prepareEsCall ~> broadcastEsRequest ~> | ~> esCall ~> broadcastEsResponse  | ~> merge ~> responseShape.in
+									                                                                                | ~> zipEsCalls.in1
+                                                                                                  | ~> startMeasureEsCall ~> zipEsCalls.in0 ~> zipEsCalls.out ~> Sink.ignore
+								                                                                                  | ~> parseEsResponse  ~> collectEsMetrics ~> out
+    */
   val validationFlow: Flow[IncomingRequest, EitherErr[AttachmentRequest], NotUsed] =
     Flow.fromGraph(
       GraphDSL.create() { implicit builder =>
         import GraphDSL.Implicits._
 
+        val merge = builder.add(Merge[EitherErr[AttachmentRequestKey]](2))
+        val partitionEsCalls = builder.add(partitionRequests[AttachmentRequestKey]())
+        val broadcastEsRequest = builder.add(Broadcast[(HttpRequest, EitherErr[AttachmentRequestKey])](2))
+        val broadcastEsResponse = builder.add(Broadcast[(Try[HttpResponse], EitherErr[AttachmentRequestKey])](2))
+        val zipEsCalls =
+          builder.add(ZipWith[Histogram.Timer, (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Histogram.Timer]((a, _) => a))
+
         val validationShape = builder.add(validateRequest)
         val responseShape = builder.add(remapAttachmentRequestKey)
 
-        validationShape ~> createEsRequest ~> validateAttachmentRequest ~> parseEsResponse ~> collectEsMetrics ~> responseShape.in
+        validationShape ~> partitionEsCalls
+        partitionEsCalls ~> merge
+        partitionEsCalls ~> createEsRequest ~> broadcastEsRequest
+        broadcastEsRequest ~> startEsMetrics ~> zipEsCalls.in0
+        broadcastEsRequest ~> validateAttachmentRequest ~> broadcastEsResponse
+        broadcastEsResponse ~> zipEsCalls.in1
+        zipEsCalls.out ~> finishEsMetrics ~> Sink.ignore
+        broadcastEsResponse ~> parseEsResponse ~> merge
+        merge ~> collectEsMetrics ~> responseShape.in
 
         FlowShape(validationShape.in, responseShape.out)
       }

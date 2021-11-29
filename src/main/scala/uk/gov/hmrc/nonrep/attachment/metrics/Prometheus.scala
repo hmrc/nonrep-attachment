@@ -3,12 +3,10 @@ package uk.gov.hmrc.nonrep.attachment.metrics
 import com.codahale.metrics.jvm.{GarbageCollectorMetricSet, MemoryUsageGaugeSet, ThreadStatesGaugeSet}
 import com.codahale.metrics.{JvmAttributeGaugeSet, SharedMetricRegistries}
 import fr.davit.akka.http.metrics.prometheus.{Buckets, PrometheusRegistry, PrometheusSettings, Quantiles}
-import io.prometheus.client.CollectorRegistry
 import io.prometheus.client.dropwizard.DropwizardExports
 import io.prometheus.client.hotspot.DefaultExports
+import io.prometheus.client.{CollectorRegistry, Counter, Histogram}
 import uk.gov.hmrc.nonrep.attachment.server.Main.config
-import io.prometheus.client.CollectorRegistry.defaultRegistry
-import io.prometheus.client.{Counter, Histogram}
 
 object Prometheus {
 
@@ -36,7 +34,8 @@ object Prometheus {
   }
 
   private val defaultHistogramBuckets =
-    List(.1, .2, .3, .4, .5, .6, .7, .8, .9, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5, 10.0, 20.0)
+    List(.1, .2, .3, .4, .5, .6, .7, .8, .9, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5, 10.0,
+      20.0)
 
   val esDuration: Histogram = Histogram
     .build()
