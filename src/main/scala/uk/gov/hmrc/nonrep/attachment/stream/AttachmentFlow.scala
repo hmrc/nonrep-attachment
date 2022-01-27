@@ -3,6 +3,7 @@ package stream
 
 import akka.NotUsed
 import akka.actor.typed.ActorSystem
+import akka.http.scaladsl.model.StatusCodes.Unauthorized
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
 import akka.stream.Supervision._
 import akka.stream.scaladsl.{Broadcast, Flow, GraphDSL, Merge, Partition, Sink, ZipWith}
@@ -28,11 +29,22 @@ class AttachmentFlow()(implicit val system: ActorSystem[_], config: ServiceConfi
   val validateAttachmentRequest
     : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] = es.run()
 
-  val validateRequest: Flow[IncomingRequest, EitherErr[AttachmentRequestKey], NotUsed] = Flow[IncomingRequest].map { data =>
-    Try(data.request.convertTo[AttachmentRequest]).toEither.left
-      .map(t => ErrorMessage("JSON parsing error", error = Some(t)))
-      .map(AttachmentRequestKey(data.apiKey, _))
-  }
+  val validateXApiHeader:  Flow[IncomingRequest, EitherErr[IncomingRequest], NotUsed] =
+    Flow[IncomingRequest].map { incomingRequest =>
+      if (config.notableEvents.contains(incomingRequest.apiKey.hashedKey))
+        Right(incomingRequest)
+      else
+        Left(ErrorMessage("Unauthorised access: Invalid X-API-Key", Unauthorized))
+    }
+
+  val validateRequest: Flow[EitherErr[IncomingRequest], EitherErr[AttachmentRequestKey], NotUsed] =
+    Flow[EitherErr[IncomingRequest]].map { incomingRequestOrError =>
+      incomingRequestOrError.flatMap{ incomingRequest =>
+        Try(incomingRequest.request.convertTo[AttachmentRequest]).toEither.left
+          .map(t => ErrorMessage("JSON parsing error", error = Some(t)))
+          .map(AttachmentRequestKey(incomingRequest.apiKey, _))
+      }
+    }
 
   val createEsRequest: Flow[EitherErr[AttachmentRequestKey], (HttpRequest, EitherErr[AttachmentRequestKey]), NotUsed] =
     Flow[EitherErr[AttachmentRequestKey]].map { data =>
@@ -98,9 +110,11 @@ class AttachmentFlow()(implicit val system: ActorSystem[_], config: ServiceConfi
         val zipEsCalls =
           builder.add(ZipWith[Histogram.Timer, (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Histogram.Timer]((a, _) => a))
 
+        val validateXApiHeaderShape = builder.add(validateXApiHeader)
         val validationShape = builder.add(validateRequest)
         val responseShape = builder.add(remapAttachmentRequestKey)
 
+        validateXApiHeaderShape ~> validationShape
         validationShape ~> partitionEsCalls
         partitionEsCalls ~> merge
         partitionEsCalls ~> createEsRequest ~> broadcastEsRequest
@@ -111,7 +125,7 @@ class AttachmentFlow()(implicit val system: ActorSystem[_], config: ServiceConfi
         broadcastEsResponse ~> parseEsResponse ~> merge
         merge ~> collectEsMetrics ~> responseShape.in
 
-        FlowShape(validationShape.in, responseShape.out)
+        FlowShape(validateXApiHeaderShape.in, responseShape.out)
       }
     )
 }

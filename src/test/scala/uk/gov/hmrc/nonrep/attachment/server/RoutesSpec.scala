@@ -1,7 +1,6 @@
 package uk.gov.hmrc.nonrep.attachment
 package server
 
-import java.util.UUID
 import akka.actor.testkit.typed.scaladsl.ActorTestKit
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.adapter._
@@ -17,6 +16,7 @@ import uk.gov.hmrc.nonrep.BuildInfo
 import uk.gov.hmrc.nonrep.attachment.models.AttachmentResponse
 import uk.gov.hmrc.nonrep.attachment.utils.JsonFormats._
 
+import java.util.UUID
 import scala.concurrent.duration._
 
 class RoutesSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
@@ -29,10 +29,7 @@ class RoutesSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
 
   private implicit val timeout: RouteTestTimeout = RouteTestTimeout(10 second span)
 
-  private val apiKeyHeader = RawHeader("x-api-Key", apiKey)
-
   private implicit val config: ServiceConfig = new ServiceConfig()
-
 
   "Service routes for attachment service" should {
 
@@ -82,12 +79,18 @@ class RoutesSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
     }
 
     "return 401" when {
-      "a post request to /attachment lacks the x-api-Key header" in {
-        val attachmentId = UUID.randomUUID().toString
-        val attachmentRequest = validAttachmentRequestJson(attachmentId)
-        val request = Post("/attachment").withEntity(`application/json`, attachmentRequest)
+      val attachmentId = UUID.randomUUID().toString
+      val attachmentRequest = validAttachmentRequestJson(attachmentId)
+      val request = Post("/attachment").withEntity(`application/json`, attachmentRequest)
 
+      "a post request to /attachment lacks the x-api-Key header" in {
         request ~> routes.serviceRoutes ~> check {
+          status shouldBe Unauthorized
+        }
+      }
+
+      "a post request to /attachment contains an x-api-Key header which is not configured for any client" in {
+        request.withHeaders(RawHeader("x-api-Key", "oops")) ~> routes.serviceRoutes ~> check {
           status shouldBe Unauthorized
         }
       }

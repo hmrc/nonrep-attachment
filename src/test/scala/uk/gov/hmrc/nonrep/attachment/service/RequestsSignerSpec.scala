@@ -16,7 +16,7 @@ class RequestsSignerSpec extends BaseSpec with ScalaFutures {
 
     "create signed http request" in {
       val creds = StaticCredentialsProvider.create(AwsBasicCredentials.create("ASIAXXX", "xxx"))
-      val path = buildPath(config.notableEvents(apiKey))
+      val path = buildPath(config.notableEvents(apiKey.hashedKey))
       val body = """{"query": {"match_all":{}}"""
       val request = createSignedRequest(HttpMethods.POST, config.elasticSearchUri, path, body, creds)
       request.method shouldBe HttpMethods.POST

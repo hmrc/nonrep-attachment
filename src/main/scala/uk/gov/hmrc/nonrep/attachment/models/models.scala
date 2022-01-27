@@ -1,7 +1,8 @@
 package uk.gov.hmrc.nonrep.attachment.models
 
 import spray.json.{JsObject, JsValue}
-import uk.gov.hmrc.nonrep.attachment.{ApiKey, Id}
+import uk.gov.hmrc.nonrep.attachment.Id
+import uk.gov.hmrc.nonrep.attachment.utils.CryptoUtils.calculateSha256
 
 case class AttachmentRequest(attachmentUrl: Id,
                              attachmentId: Id,
@@ -9,9 +10,13 @@ case class AttachmentRequest(attachmentUrl: Id,
                              attachmentContentType: Id,
                              nrSubmissionId: Id)
 
-case class IncomingRequest(apiKey: ApiKey, request: JsValue)
+case class HashableApiKey(key: String) {
+  def hashedKey: String = calculateSha256(key.getBytes("UTF-8"))
+}
 
-case class AttachmentRequestKey(apiKey: ApiKey, request: AttachmentRequest)
+case class IncomingRequest(apiKey: HashableApiKey, request: JsValue)
+
+case class AttachmentRequestKey(apiKey: HashableApiKey, request: AttachmentRequest)
 
 case class AttachmentResponse(attachmentId: Id)
 

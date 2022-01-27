@@ -1,14 +1,11 @@
 package uk.gov.hmrc.nonrep.attachment
 
-import java.util.UUID
-
 import akka.actor.testkit.typed.scaladsl.ActorTestKit
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.adapter._
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.ContentTypes.`application/json`
 import akka.http.scaladsl.model.HttpMethods.POST
-import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse, StatusCodes}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import org.scalatest.Inside
@@ -20,6 +17,7 @@ import uk.gov.hmrc.nonrep.attachment.models.AttachmentResponse
 import uk.gov.hmrc.nonrep.attachment.server.{NonrepMicroservice, Routes, ServiceConfig}
 import uk.gov.hmrc.nonrep.attachment.utils.JsonFormats._
 
+import java.util.UUID
 import scala.concurrent.Future
 
 class ServiceIntSpec extends BaseSpec with ScalatestRouteTest with ScalaFutures with Inside {
@@ -47,8 +45,6 @@ class ServiceIntSpec extends BaseSpec with ScalatestRouteTest with ScalaFutures 
     whenReady(service.serverBinding) {
       _.unbind()
     }
-
-  private val apiKeyHeader = RawHeader("x-api-Key", "66975df1e55c4bb9c7dcb4313e5514c234f071b1199efd455695fefb3e54bbf2")
 
   "attachment service service" should {
 

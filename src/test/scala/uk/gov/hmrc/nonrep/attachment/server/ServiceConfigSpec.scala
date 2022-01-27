@@ -20,7 +20,7 @@ class ServiceConfigSpec extends BaseSpec {
     }
     "build config object for notable events" in {
       config.notableEvents.isEmpty shouldBe false
-      config.notableEvents(apiKey).head shouldBe "vat-registration"
+      config.notableEvents(apiKey.hashedKey).head shouldBe "vat-registration"
     }
   }
 }

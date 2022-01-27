@@ -30,7 +30,7 @@ object TestServices {
     implicit val successfulIndexing: Indexing[AttachmentRequestKey] = new Indexing[AttachmentRequestKey]() {
       override def query(data: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig, system: ActorSystem[_]): HttpRequest =
         data.toOption.map { value =>
-          val path = Indexing.buildPath(config.notableEvents(value.apiKey))
+          val path = Indexing.buildPath(config.notableEvents(value.apiKey.hashedKey))
           val body = s"""{"query": {"bool":{"must":[{"match":{"attachmentIds":"${value.request.attachmentId}"}},{"ids":{"values":"${value.request.nrSubmissionId}"}}]}}}"""
           HttpRequest(HttpMethods.POST, Uri(path), Nil, HttpEntity(ContentTypes.`application/json`, body))
         }.getOrElse(HttpRequest())
@@ -51,7 +51,7 @@ object TestServices {
     implicit val indexingWithUpstreamFailureAndParsingError: Indexing[AttachmentRequestKey] = new Indexing[AttachmentRequestKey]() {
       override def query(data: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig, system: ActorSystem[_]): HttpRequest =
         data.toOption.map { value =>
-          val path = Indexing.buildPath(config.notableEvents(value.apiKey))
+          val path = Indexing.buildPath(config.notableEvents(value.apiKey.hashedKey))
           val body = s"""{"query": {"bool":{"must":[{"match":{"attachmentIds":"${value.request.attachmentId}"}},{"ids":{"values":"${value.request.nrSubmissionId}"}}]}}}"""
           HttpRequest(HttpMethods.POST, Uri(path), Nil, HttpEntity(ContentTypes.`application/json`, body))
         }.getOrElse(HttpRequest())

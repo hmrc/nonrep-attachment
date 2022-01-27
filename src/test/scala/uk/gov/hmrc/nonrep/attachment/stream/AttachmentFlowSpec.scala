@@ -25,11 +25,11 @@ class AttachmentFlowSpec extends BaseSpec with ScalaFutures with ScalatestRouteT
     import TestServices.success._
 
     "validate incoming request" in {
-      val source = TestSource.probe[IncomingRequest]
+      val source = TestSource.probe[EitherErr[IncomingRequest]]
       val sink = TestSink.probe[EitherErr[AttachmentRequestKey]]
       val (pub, sub) = source.via(flow.validateRequest).toMat(sink)(Keep.both).run()
       pub
-        .sendNext(IncomingRequest(apiKey, validAttachmentRequestJson().parseJson))
+        .sendNext(Right[ErrorMessage, IncomingRequest](IncomingRequest(apiKey, validAttachmentRequestJson().parseJson)))
         .sendComplete()
       val result = sub
         .request(1)
