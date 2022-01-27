@@ -2,13 +2,12 @@ package uk.gov.hmrc.nonrep.attachment
 package server
 
 import java.util.UUID
-
 import akka.actor.testkit.typed.scaladsl.ActorTestKit
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.adapter._
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import akka.http.scaladsl.model.ContentTypes.{`application/json`, `text/plain(UTF-8)`}
-import akka.http.scaladsl.model.StatusCodes.{Accepted, BadRequest, OK}
+import akka.http.scaladsl.model.StatusCodes.{Accepted, BadRequest, OK, Unauthorized}
 import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
@@ -79,6 +78,18 @@ class RoutesSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
       request ~> routes.serviceRoutes ~> check {
         status shouldBe Accepted
         responseAs[String] shouldBe AttachmentResponse(attachmentId).toJson.toString
+      }
+    }
+
+    "return 401" when {
+      "a post request to /attachment lacks the x-api-Key header" in {
+        val attachmentId = UUID.randomUUID().toString
+        val attachmentRequest = validAttachmentRequestJson(attachmentId)
+        val request = Post("/attachment").withEntity(`application/json`, attachmentRequest)
+
+        request ~> routes.serviceRoutes ~> check {
+          status shouldBe Unauthorized
+        }
       }
     }
 
