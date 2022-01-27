@@ -82,7 +82,7 @@ object Indexing {
 
     override def query(data: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig, system: ActorSystem[_]): HttpRequest =
       data.toOption
-        .flatMap(value => config.notableEvents.get(value.apiKey.hashedKey).map(notableEvents => (value, notableEvents)))
+        .flatMap(value => config.maybeNotableEvents(value.apiKey).map(notableEvents => (value, notableEvents)))
         .map {
           case (attachmentRequestKey: AttachmentRequestKey, notableEvents) =>
             import RequestsSigner._

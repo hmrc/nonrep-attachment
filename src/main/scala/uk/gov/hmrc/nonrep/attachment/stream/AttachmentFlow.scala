@@ -31,10 +31,10 @@ class AttachmentFlow()(implicit val system: ActorSystem[_], config: ServiceConfi
 
   val validateXApiHeader:  Flow[IncomingRequest, EitherErr[IncomingRequest], NotUsed] =
     Flow[IncomingRequest].map { incomingRequest =>
-      if (config.notableEvents.contains(incomingRequest.apiKey.hashedKey))
-        Right(incomingRequest)
-      else
-        Left(ErrorMessage("Unauthorised access: Invalid X-API-Key", Unauthorized))
+      config.maybeNotableEvents(incomingRequest.apiKey) match {
+        case Some(_) => Right(incomingRequest)
+        case None => Left(ErrorMessage("Unauthorised access: Invalid X-API-Key", Unauthorized))
+      }
     }
 
   val validateRequest: Flow[EitherErr[IncomingRequest], EitherErr[AttachmentRequestKey], NotUsed] =

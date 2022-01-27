@@ -1,10 +1,10 @@
 package uk.gov.hmrc.nonrep.attachment
 package server
 
-import java.net.URI
-
 import com.typesafe.config.{Config, ConfigFactory}
+import uk.gov.hmrc.nonrep.attachment.models.ApiKey
 
+import java.net.URI
 import scala.jdk.CollectionConverters._
 
 class ServiceConfig(val servicePort: Int = 8000) {
@@ -20,15 +20,14 @@ class ServiceConfig(val servicePort: Int = 8000) {
 
   private val configFile = new java.io.File(s"/etc/config/CONFIG_FILE")
 
-  val config = if (configFile.exists()) {
-    ConfigFactory.parseFile(configFile)
-  } else {
-    ConfigFactory.load("application.conf")
-  }
+  val config: Config =
+    if (configFile.exists()) ConfigFactory.parseFile(configFile)
+    else ConfigFactory.load("application.conf")
 
   private val clientsConfig: Config = config.getConfig(s"$projectName-$appName.clients-config")
 
   val businessIds: Set[String] = clientsConfig.root().keySet().asScala.toSet
-  val notableEvents: Map[ApiKey, Set[String]] = businessIds.map(c => (clientsConfig.getString(s"$c.apiKey"), clientsConfig.getStringList(s"$c.notableEvents").asScala.toSet)).toMap
+  protected[server] val notableEvents: Map[String, Set[String]] = businessIds.map(c => (clientsConfig.getString(s"$c.apiKey"), clientsConfig.getStringList(s"$c.notableEvents").asScala.toSet)).toMap
 
+  def maybeNotableEvents(apiKey: ApiKey): Option[Set[String]] = notableEvents.get(apiKey.hashedKey)
 }

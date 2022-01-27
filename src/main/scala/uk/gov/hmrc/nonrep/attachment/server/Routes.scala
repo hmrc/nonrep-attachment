@@ -18,7 +18,7 @@ import fr.davit.akka.http.metrics.prometheus.marshalling.PrometheusMarshallers._
 import spray.json._
 import uk.gov.hmrc.nonrep.BuildInfo
 import uk.gov.hmrc.nonrep.attachment.metrics.Prometheus._
-import uk.gov.hmrc.nonrep.attachment.models.{AttachmentResponse, HashableApiKey, IncomingRequest}
+import uk.gov.hmrc.nonrep.attachment.models.{AttachmentResponse, ApiKey, IncomingRequest}
 import uk.gov.hmrc.nonrep.attachment.service.ResponseService
 import uk.gov.hmrc.nonrep.attachment.stream.AttachmentFlow
 import uk.gov.hmrc.nonrep.attachment.utils.JsonFormats._
@@ -62,7 +62,7 @@ class Routes(flow: AttachmentFlow)(implicit val system: ActorSystem[_], config: 
                     val stream = request
                       .log(name = "attachmentFlow")
                       .addAttributes(logLevels(onElement = Off, onFinish = Info, onFailure = Error))
-                      .map(IncomingRequest(HashableApiKey(apiKey), _))
+                      .map(IncomingRequest(ApiKey(apiKey), _))
                       .via(flow.validationFlow)
                       .toMat(Sink.head)(Keep.right)
                       .run()
