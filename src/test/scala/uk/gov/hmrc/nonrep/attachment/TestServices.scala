@@ -13,7 +13,7 @@ import uk.gov.hmrc.nonrep.attachment.stream.AttachmentFlow
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
-object TestServices {
+object TestServices extends TestConfigUtils{
   lazy val testKit: ActorTestKit = ActorTestKit()
 
   implicit def typedSystem: ActorSystem[Nothing] = testKit.system
@@ -30,7 +30,7 @@ object TestServices {
     implicit val successfulIndexing: Indexing[AttachmentRequestKey] = new Indexing[AttachmentRequestKey]() {
       override def query(data: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig, system: ActorSystem[_]): HttpRequest =
         data.toOption.map { value =>
-          val path = Indexing.buildPath(config.notableEvents(value.apiKey))
+          val path = Indexing.buildPath(notableEventsOrEmpty(config, value.apiKey))
           val body = s"""{"query": {"bool":{"must":[{"match":{"attachmentIds":"${value.request.attachmentId}"}},{"ids":{"values":"${value.request.nrSubmissionId}"}}]}}}"""
           HttpRequest(HttpMethods.POST, Uri(path), Nil, HttpEntity(ContentTypes.`application/json`, body))
         }.getOrElse(HttpRequest())
@@ -51,7 +51,7 @@ object TestServices {
     implicit val indexingWithUpstreamFailureAndParsingError: Indexing[AttachmentRequestKey] = new Indexing[AttachmentRequestKey]() {
       override def query(data: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig, system: ActorSystem[_]): HttpRequest =
         data.toOption.map { value =>
-          val path = Indexing.buildPath(config.notableEvents(value.apiKey))
+          val path = Indexing.buildPath(notableEventsOrEmpty(config, value.apiKey))
           val body = s"""{"query": {"bool":{"must":[{"match":{"attachmentIds":"${value.request.attachmentId}"}},{"ids":{"values":"${value.request.nrSubmissionId}"}}]}}}"""
           HttpRequest(HttpMethods.POST, Uri(path), Nil, HttpEntity(ContentTypes.`application/json`, body))
         }.getOrElse(HttpRequest())

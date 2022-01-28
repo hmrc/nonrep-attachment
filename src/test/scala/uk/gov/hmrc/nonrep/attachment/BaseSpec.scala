@@ -1,8 +1,12 @@
 package uk.gov.hmrc.nonrep.attachment
 
+import akka.http.scaladsl.model.headers.RawHeader
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
+import uk.gov.hmrc.nonrep.attachment.models.ApiKey
 
 trait BaseSpec extends AnyWordSpec with Matchers with DataSamples {
-  val apiKey = "66975df1e55c4bb9c7dcb4313e5514c234f071b1199efd455695fefb3e54bbf2"
+  val apiKey: ApiKey = ApiKey("vrsApiKey123")
+
+  val apiKeyHeader: RawHeader = RawHeader("x-api-Key", apiKey.key)
 }

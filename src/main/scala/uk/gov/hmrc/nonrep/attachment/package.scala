@@ -5,7 +5,6 @@ import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 package object attachment {
 
   type Id = String
-  type ApiKey = String
   type EitherErr[T] = Either[ErrorMessage, T]
 
   case class BuildVersion(version: String) extends AnyVal

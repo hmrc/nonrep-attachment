@@ -1,13 +1,20 @@
 package uk.gov.hmrc.nonrep.attachment.models
 
 import spray.json.{JsObject, JsValue}
-import uk.gov.hmrc.nonrep.attachment.{ApiKey, Id}
+import uk.gov.hmrc.nonrep.attachment.Id
+
+import java.security.MessageDigest
 
 case class AttachmentRequest(attachmentUrl: Id,
                              attachmentId: Id,
                              payloadSha256Checksum: Id,
                              attachmentContentType: Id,
                              nrSubmissionId: Id)
+
+case class ApiKey(key: String) {
+  def hashedKey: String =
+    MessageDigest.getInstance("SHA-256").digest(key.getBytes("UTF-8")).map("%02x".format(_)).mkString
+}
 
 case class IncomingRequest(apiKey: ApiKey, request: JsValue)
 
