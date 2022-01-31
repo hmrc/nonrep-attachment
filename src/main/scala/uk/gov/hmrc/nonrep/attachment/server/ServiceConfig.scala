@@ -30,4 +30,6 @@ class ServiceConfig(val servicePort: Int = 8000) {
   protected[server] val notableEvents: Map[String, Set[String]] = businessIds.map(c => (clientsConfig.getString(s"$c.apiKey"), clientsConfig.getStringList(s"$c.notableEvents").asScala.toSet)).toMap
 
   def maybeNotableEvents(apiKey: ApiKey): Option[Set[String]] = notableEvents.get(apiKey.hashedKey)
+
+  val attachmentsBucket = s"$env-nonrep-attachment-data"
 }

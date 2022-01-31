@@ -63,7 +63,7 @@ class Routes(flow: AttachmentFlow)(implicit val system: ActorSystem[_], config: 
                       .log(name = "attachmentFlow")
                       .addAttributes(logLevels(onElement = Off, onFinish = Info, onFailure = Error))
                       .map(IncomingRequest(ApiKey(apiKey), _))
-                      .via(flow.validationFlow)
+                      .via(flow.applicationFlow)
                       .toMat(Sink.head)(Keep.right)
                       .run()
 

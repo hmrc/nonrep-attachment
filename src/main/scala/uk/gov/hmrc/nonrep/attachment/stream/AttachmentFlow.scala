@@ -3,26 +3,28 @@ package stream
 
 import akka.NotUsed
 import akka.actor.typed.ActorSystem
-import akka.http.scaladsl.model.StatusCodes.Unauthorized
-import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
+import akka.http.scaladsl.model.StatusCodes.{BadRequest, InternalServerError, Unauthorized}
+import akka.http.scaladsl.model.{HttpRequest, HttpResponse, StatusCodes}
 import akka.stream.Supervision._
 import akka.stream.scaladsl.{Broadcast, Flow, GraphDSL, Merge, Partition, Sink, ZipWith}
 import akka.stream.{ActorAttributes, FlowShape}
+import akka.util.ByteString
 import io.prometheus.client.Histogram
 import uk.gov.hmrc.nonrep.attachment.metrics.Prometheus.{esCounter, esDuration}
 import uk.gov.hmrc.nonrep.attachment.models.{AttachmentRequest, AttachmentRequestKey, IncomingRequest}
 import uk.gov.hmrc.nonrep.attachment.server.ServiceConfig
-import uk.gov.hmrc.nonrep.attachment.service.Indexing
+import uk.gov.hmrc.nonrep.attachment.service.Storage._
+import uk.gov.hmrc.nonrep.attachment.service.{Indexing, Storage}
 import uk.gov.hmrc.nonrep.attachment.utils.JsonFormats._
 
 import scala.concurrent.Future
 import scala.util.{Failure, Success, Try}
 
 object AttachmentFlow {
-  def apply()(implicit system: ActorSystem[_], config: ServiceConfig, es: Indexing[AttachmentRequestKey]) = new AttachmentFlow()
+  def apply()(implicit system: ActorSystem[_], config: ServiceConfig, es: Indexing[AttachmentRequestKey], storage: Storage[AttachmentRequestKey]) = new AttachmentFlow()
 }
 
-class AttachmentFlow()(implicit val system: ActorSystem[_], config: ServiceConfig, es: Indexing[AttachmentRequestKey]) {
+class AttachmentFlow()(implicit val system: ActorSystem[_], config: ServiceConfig, es: Indexing[AttachmentRequestKey], storage: Storage[AttachmentRequestKey]) {
 
   import Indexing.ops._
 
@@ -85,6 +87,62 @@ class AttachmentFlow()(implicit val system: ActorSystem[_], config: ServiceConfi
       }
     }
 
+  val presignedS3URLs: Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] = storage.s3Call
+
+  val createS3Request: Flow[EitherErr[AttachmentRequestKey], (HttpRequest, EitherErr[AttachmentRequestKey]), NotUsed] = {
+    Flow[EitherErr[AttachmentRequestKey]].map { data =>
+      (storage.s3Request(data), data)
+    }
+  }
+
+  val parseS3Response: Flow[(Try[HttpResponse], EitherErr[AttachmentRequestKey]), EitherErr[(AttachmentRequestKey, ByteString)], NotUsed] =
+    Flow[(Try[HttpResponse], EitherErr[AttachmentRequestKey])]
+      .mapAsyncUnordered(8) {
+        case (httpResponse, request) =>
+          httpResponse match {
+            case Success(response)  => storage.s3Response(request, response)
+            case Failure(exception) => Future.failed(exception)
+          }
+      }.map(_.left.map(error => ErrorMessage(error.message, BadRequest)))
+      .withAttributes(ActorAttributes.supervisionStrategy(stoppingDecider))
+
+  val getAttachmentMaterial: Flow[EitherErr[AttachmentRequestKey], EitherErr[(AttachmentRequestKey, ByteString)], NotUsed] = {
+    Flow.fromGraph(
+      GraphDSL.create() { implicit builder =>
+        import GraphDSL.Implicits._
+
+        val requestShape = builder.add(createS3Request)
+        val responseShape = builder.add(parseS3Response)
+
+        requestShape ~> presignedS3URLs ~> responseShape
+
+        FlowShape(requestShape.in, responseShape.out)
+      })}
+
+  val validateAttachmentChecksum: Flow[EitherErr[(AttachmentRequestKey, ByteString)], EitherErr[(AttachmentRequestKey, ByteString)], NotUsed] =
+    Flow[EitherErr[(AttachmentRequestKey, ByteString)]].map { data =>
+      data.filterOrElse(entry => {
+        val (attachment, file) = entry
+        attachment.request.payloadSha256Checksum == file.toArray[Byte].calculateSha256
+      }, {
+        val error419 = StatusCodes.custom(419, "Checksum Failed")
+        ErrorMessage(error419.reason(), error419)
+      }).map{ case (attachment, file) => (attachment, file)}
+    }
+
+  val extractFileContent: Flow[EitherErr[(AttachmentRequest, ByteString)], EitherErr[ByteString], NotUsed] =
+    Flow[EitherErr[(AttachmentRequest, ByteString)]].map {
+      _.map(_._2)
+    }
+
+  val putAttachmentForProcessing: Flow[EitherErr[(AttachmentRequestKey, ByteString)], EitherErr[AttachmentRequestKey], NotUsed] =
+    Flow[EitherErr[(AttachmentRequestKey, ByteString)]].mapAsyncUnordered(8) {
+      case Right((attachment, file)) => storage.putS3Object(attachment, file)
+      case Left(error) => Future.failed(new RuntimeException(error.message))
+    }.map(_.left.map(error => ErrorMessage(error.message, InternalServerError)))
+      .withAttributes(ActorAttributes.supervisionStrategy(stoppingDecider))
+
+
   private def partitionRequests[A]() =
     Partition[EitherErr[A]](2, {
       case Left(_)  => 0
@@ -98,34 +156,37 @@ class AttachmentFlow()(implicit val system: ActorSystem[_], config: ServiceConfi
                                                                                                   | ~> startMeasureEsCall ~> zipEsCalls.in0 ~> zipEsCalls.out ~> Sink.ignore
 								                                                                                  | ~> parseEsResponse  ~> collectEsMetrics ~> out
     */
-  val validationFlow: Flow[IncomingRequest, EitherErr[AttachmentRequest], NotUsed] =
+  val applicationFlow: Flow[IncomingRequest, EitherErr[AttachmentRequest], NotUsed] =
     Flow.fromGraph(
       GraphDSL.create() { implicit builder =>
         import GraphDSL.Implicits._
 
-        val merge = builder.add(Merge[EitherErr[AttachmentRequestKey]](2))
         val partitionEsCalls = builder.add(partitionRequests[AttachmentRequestKey]())
+        val mergeEsCalls = builder.add(Merge[EitherErr[AttachmentRequestKey]](2))
         val broadcastEsRequest = builder.add(Broadcast[(HttpRequest, EitherErr[AttachmentRequestKey])](2))
         val broadcastEsResponse = builder.add(Broadcast[(Try[HttpResponse], EitherErr[AttachmentRequestKey])](2))
         val zipEsCalls =
           builder.add(ZipWith[Histogram.Timer, (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Histogram.Timer]((a, _) => a))
+        val partitionS3Calls = builder.add(partitionRequests[AttachmentRequestKey]())
+        val mergeS3Calls = builder.add(Merge[EitherErr[AttachmentRequestKey]](2))
 
         val validateXApiHeaderShape = builder.add(validateXApiHeader)
-        val validationShape = builder.add(validateRequest)
-        val responseShape = builder.add(remapAttachmentRequestKey)
+        val responseRemappedShape = builder.add(remapAttachmentRequestKey)
 
-        validateXApiHeaderShape ~> validationShape
-        validationShape ~> partitionEsCalls
-        partitionEsCalls ~> merge
+        validateXApiHeaderShape ~> validateRequest ~> partitionEsCalls
+        partitionEsCalls ~> mergeEsCalls
         partitionEsCalls ~> createEsRequest ~> broadcastEsRequest
         broadcastEsRequest ~> startEsMetrics ~> zipEsCalls.in0
         broadcastEsRequest ~> validateAttachmentRequest ~> broadcastEsResponse
         broadcastEsResponse ~> zipEsCalls.in1
         zipEsCalls.out ~> finishEsMetrics ~> Sink.ignore
-        broadcastEsResponse ~> parseEsResponse ~> merge
-        merge ~> collectEsMetrics ~> responseShape.in
+        broadcastEsResponse ~> parseEsResponse ~> mergeEsCalls
+        mergeEsCalls ~> collectEsMetrics ~> partitionS3Calls
+        partitionS3Calls ~> mergeS3Calls
+        partitionS3Calls ~> getAttachmentMaterial ~> validateAttachmentChecksum ~> putAttachmentForProcessing ~> mergeS3Calls
+        mergeS3Calls ~> responseRemappedShape.in
 
-        FlowShape(validateXApiHeaderShape.in, responseShape.out)
+        FlowShape(validateXApiHeaderShape.in, responseRemappedShape.out)
       }
     )
 }
