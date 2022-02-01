@@ -18,7 +18,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.util.Try
 
-trait Storage[A] extends Request[A] with Call[A] with Response[A] {
+trait Storage[A] extends Service[A] {
   def upload(data: A, file: ByteString)(implicit system: ActorSystem[_], config: ServiceConfig): Future[EitherErr[A]]
 }
 

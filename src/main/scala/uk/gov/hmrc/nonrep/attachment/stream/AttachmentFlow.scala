@@ -141,7 +141,6 @@ class AttachmentFlow()(
             ErrorMessage(error419.reason(), error419)
           }
         )
-        .map { case (attachment, file) => (attachment, file) }
     }
 
   val putAttachmentForProcessing: Flow[EitherErr[(AttachmentRequestKey, ByteString)], EitherErr[AttachmentRequestKey], NotUsed] =

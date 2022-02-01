@@ -24,34 +24,10 @@ import uk.gov.hmrc.nonrep.attachment.utils.JsonFormats._
 import scala.concurrent.Future
 import scala.util.Try
 
-trait Indexing[A] extends Request[A] with Call[A] with Response[A] {}
+trait Indexing[A] extends Service[A] {}
 
 class IndexingService extends Indexing[AttachmentRequestKey] {
   import Indexing._
-
-  override def response(value: EitherErr[AttachmentRequestKey], response: HttpResponse)(
-    implicit system: ActorSystem[_]): Future[EitherErr[(AttachmentRequestKey, ByteString)]] =
-    if (response.status == StatusCodes.OK) {
-      import system.executionContext
-      response.entity.dataBytes
-        .runFold(ByteString.empty)(_ ++ _)
-        .map(bytes => (bytes.utf8String.parseJson.convertTo[SearchResponse], bytes))
-        .map(Right(_).withLeft[ErrorMessage])
-        .map(_.filterOrElse(_._1.hits.total == 1, ErrorMessage("Invalid nrSubmissionId"))
-          .flatMap(response => value.map((_, response._2))))
-    } else {
-      system.log.error(s"Response status ${response.status} received rom ES server for request: [$value]. Full response is: [$response]")
-      val error = ErrorMessage(s"Response status ${response.status} from ES server", StatusCodes.InternalServerError)
-      response.discardEntityBytes()
-      Future.successful(Left(error))
-    }
-
-  override def call()(implicit system: ActorSystem[_], config: ServiceConfig)
-    : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] =
-    if (config.isElasticSearchProtocolSecure)
-      Http().cachedHostConnectionPoolHttps[EitherErr[AttachmentRequestKey]](config.elasticSearchHost)
-    else
-      Http().cachedHostConnectionPool[EitherErr[AttachmentRequestKey]](config.elasticSearchHost)
 
   override def request(data: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig, system: ActorSystem[_]): HttpRequest =
     data.toOption
@@ -70,7 +46,31 @@ class IndexingService extends Indexing[AttachmentRequestKey] {
 
           request
       }
-      .getOrElse(HttpRequest())
+      .getOrElse(throw new RuntimeException("Error creating S3 request"))
+
+  override def call()(implicit system: ActorSystem[_], config: ServiceConfig)
+    : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] =
+    if (config.isElasticSearchProtocolSecure)
+      Http().cachedHostConnectionPoolHttps[EitherErr[AttachmentRequestKey]](config.elasticSearchHost)
+    else
+      Http().cachedHostConnectionPool[EitherErr[AttachmentRequestKey]](config.elasticSearchHost)
+
+  override def response(value: EitherErr[AttachmentRequestKey], response: HttpResponse)(
+    implicit system: ActorSystem[_]): Future[EitherErr[(AttachmentRequestKey, ByteString)]] =
+    if (response.status == StatusCodes.OK) {
+      import system.executionContext
+      response.entity.dataBytes
+        .runFold(ByteString.empty)(_ ++ _)
+        .map(bytes => (bytes.utf8String.parseJson.convertTo[SearchResponse], bytes))
+        .map(Right(_).withLeft[ErrorMessage])
+        .map(_.filterOrElse(_._1.hits.total == 1, ErrorMessage("Invalid nrSubmissionId"))
+          .flatMap(response => value.map((_, response._2))))
+    } else {
+      system.log.error(s"Response status ${response.status} received rom ES server for request: [$value]. Full response is: [$response]")
+      val error = ErrorMessage(s"Response status ${response.status} from ES server", StatusCodes.InternalServerError)
+      response.discardEntityBytes()
+      Future.successful(Left(error))
+    }
 
 }
 
