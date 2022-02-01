@@ -35,8 +35,6 @@ class AttachmentFlow()(
   index: Indexing[AttachmentRequestKey],
   storage: Storage[AttachmentRequestKey]) {
 
-  //import Indexing.ops._
-
   val validateAttachmentRequest
     : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] = index.call()
 
