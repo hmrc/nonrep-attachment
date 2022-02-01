@@ -32,4 +32,14 @@ class ServiceConfig(val servicePort: Int = 8000) {
   def maybeNotableEvents(apiKey: ApiKey): Option[Set[String]] = notableEvents.get(apiKey.hashedKey)
 
   val attachmentsBucket = s"$env-nonrep-attachment-data"
+
+  override def toString =
+    s"""
+    appName: $appName
+    port: $servicePort
+    env: $env
+    elasticSearchHost: $elasticSearchHost
+    attachmentsBucket: $attachmentsBucket
+    configFile: ${config.toString}"""
+
 }

@@ -4,7 +4,7 @@ package service
 import akka.actor.typed.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.client.RequestBuilding.Get
-import akka.http.scaladsl.model.StatusCodes.BadRequest
+import akka.http.scaladsl.model.StatusCodes.{BadRequest, InternalServerError}
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse, StatusCodes, Uri}
 import akka.stream.alpakka.s3.MetaHeaders
 import akka.stream.alpakka.s3.scaladsl.S3
@@ -35,7 +35,29 @@ class StorageService extends Storage[AttachmentRequestKey] {
             config.attachmentsBucket,
             attachment.request.attachmentId,
             metaHeaders = MetaHeaders(Map("Content-MD5" -> file.toArray[Byte].calculateMD5)))
-          .mapMaterializedValue(_.map(_ => Right(attachment).withLeft[ErrorMessage])))
+          .mapMaterializedValue(_.map { _ =>
+            Right(attachment).withLeft[ErrorMessage]
+          }.recover {
+            case e: Exception => {
+              system.log.error(s"Error [${e.getMessage}] received from S3 downstream service, with exception cause: [${e.getCause}]")
+              val error = ErrorMessage(s"Error '${e.getMessage}' received from S3 downstream service", InternalServerError)
+              Left(error)
+            }
+          }))
+
+  override def request(data: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig, system: ActorSystem[_]): HttpRequest =
+    data
+      .map { attachment =>
+        val request = Get(Uri(attachment.request.attachmentUrl))
+        system.log.info(s"Storage request for attachmentRequestKey: [$data] and attachmentUrl: [${attachment.request.attachmentUrl}]")
+        request
+      }
+      .toOption
+      .getOrElse(throw new RuntimeException("Error creating S3 upstream request"))
+
+  override def call()(implicit system: ActorSystem[_], config: ServiceConfig)
+  : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] =
+    Http().superPool[EitherErr[AttachmentRequestKey]]()
 
   override def response(request: EitherErr[AttachmentRequestKey], response: HttpResponse)(
     implicit system: ActorSystem[_]): Future[EitherErr[(AttachmentRequestKey, ByteString)]] =
@@ -45,21 +67,11 @@ class StorageService extends Storage[AttachmentRequestKey] {
         .runFold(ByteString.empty)(_ ++ _)
         .map(bytes => request.map(attachment => (attachment, bytes)))
     } else {
-      system.log.error(s"Response status ${response.status} received rom ES server. Full response is: [$response]")
-      val error = ErrorMessage(s"Response status ${response.status} from ES server", BadRequest)
+      system.log.error(s"Response status [${response.status}] received from S3 upstream service. Full response is: [$response]")
+      val error = ErrorMessage(s"Response status '${response.status}' received from S3 upstream service", BadRequest)
       response.discardEntityBytes()
       Future.successful(Left(error))
     }
-
-  override def call()(implicit system: ActorSystem[_], config: ServiceConfig)
-    : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] =
-    Http().superPool[EitherErr[AttachmentRequestKey]]()
-
-  override def request(data: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig, system: ActorSystem[_]): HttpRequest =
-    data
-      .map(attachment => Get(Uri(attachment.request.attachmentUrl)))
-      .toOption
-      .getOrElse(throw new RuntimeException("Error creating S3 request"))
 }
 
 object Storage {

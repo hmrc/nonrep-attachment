@@ -147,9 +147,8 @@ class AttachmentFlow()(
     Flow[EitherErr[(AttachmentRequestKey, ByteString)]]
       .mapAsyncUnordered(8) {
         case Right((attachment, file)) => storage.upload(attachment, file)
-        case Left(error)               => Future.failed(new RuntimeException(error.message))
+        case Left(error)               => Future.successful(Left(error).withRight[AttachmentRequestKey])
       }
-      .map(_.left.map(error => ErrorMessage(error.message, InternalServerError)))
       .withAttributes(ActorAttributes.supervisionStrategy(stoppingDecider))
 
   private def partitionRequests[A]() =

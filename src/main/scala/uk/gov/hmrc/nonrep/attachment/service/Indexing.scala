@@ -42,11 +42,11 @@ class IndexingService extends Indexing[AttachmentRequestKey] {
           val request = createSignedRequest(HttpMethods.POST, config.elasticSearchUri, path, body)
 
           system.log.info(
-            s"query for attachmentRequestKey: [$attachmentRequestKey] and notableEvents: [$notableEvents] produced path: [$path], body: [$body] and request: [$request]")
+            s"Index request for attachmentRequestKey: [$attachmentRequestKey] and notableEvents: [$notableEvents] produced path: [$path], body: [$body] and request: [$request]")
 
           request
       }
-      .getOrElse(throw new RuntimeException("Error creating S3 request"))
+      .getOrElse(throw new RuntimeException("Error creating ES request"))
 
   override def call()(implicit system: ActorSystem[_], config: ServiceConfig)
     : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] =
@@ -66,8 +66,8 @@ class IndexingService extends Indexing[AttachmentRequestKey] {
         .map(_.filterOrElse(_._1.hits.total == 1, ErrorMessage("Invalid nrSubmissionId"))
           .flatMap(response => value.map((_, response._2))))
     } else {
-      system.log.error(s"Response status ${response.status} received rom ES server for request: [$value]. Full response is: [$response]")
-      val error = ErrorMessage(s"Response status ${response.status} from ES server", StatusCodes.InternalServerError)
+      system.log.error(s"Response status [${response.status}] received rom ES server for request: [$value]. Full response is: [$response]")
+      val error = ErrorMessage(s"Response status '${response.status}' from ES server", StatusCodes.InternalServerError)
       response.discardEntityBytes()
       Future.successful(Left(error))
     }

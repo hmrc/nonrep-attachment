@@ -95,7 +95,7 @@ object TestServices extends TestConfigUtils {
 
       override def upload(attachment: AttachmentRequestKey, file: ByteString)(
         implicit system: ActorSystem[_],
-        config: ServiceConfig): Future[EitherErr[AttachmentRequestKey]] = Future.successful(Left(ErrorMessage("S3 upload error")))
+        config: ServiceConfig): Future[EitherErr[AttachmentRequestKey]] = Future.successful(Left(ErrorMessage("S3 upload error", InternalServerError)))
     }
 
     implicit val indexingWithUpstreamFailureAndParsingError: Indexing[AttachmentRequestKey] = new Indexing[AttachmentRequestKey]() {
