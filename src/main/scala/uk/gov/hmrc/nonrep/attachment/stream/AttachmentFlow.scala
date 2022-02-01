@@ -135,7 +135,7 @@ class AttachmentFlow()(
         .filterOrElse(
           entry => {
             val (attachment, file) = entry
-            attachment.request.payloadSha256Checksum == file.toArray[Byte].calculateSha256
+            attachment.request.attachmentSha256Checksum == file.toArray[Byte].calculateSha256
           }, {
             val error419 = StatusCodes.custom(419, "Checksum Failed")
             ErrorMessage(error419.reason(), error419)
