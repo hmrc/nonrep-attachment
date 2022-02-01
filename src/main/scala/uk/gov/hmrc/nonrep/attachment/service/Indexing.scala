@@ -24,101 +24,59 @@ import uk.gov.hmrc.nonrep.attachment.utils.JsonFormats._
 import scala.concurrent.Future
 import scala.util.Try
 
-trait Request[A] {
-  def query(data: EitherErr[A])(implicit config: ServiceConfig, system: ActorSystem[_]): HttpRequest
-}
-
-trait Call[A] {
-  def run()(
-    implicit system: ActorSystem[_],
-    config: ServiceConfig): Flow[(HttpRequest, EitherErr[A]), (Try[HttpResponse], EitherErr[A]), Any]
-}
-
-trait Response[A] {
-  def parse(value: EitherErr[A], response: HttpResponse)(implicit system: ActorSystem[_]): Future[EitherErr[A]]
-}
-
 trait Indexing[A] extends Request[A] with Call[A] with Response[A] {}
 
-object Indexing {
-  object Request {
-    def apply[A](implicit service: Request[A]): Request[A] = service
-  }
+class IndexingService extends Indexing[AttachmentRequestKey] {
+  import Indexing._
 
-  object Call {
-    def apply[A](implicit service: Call[A]): Call[A] = service
-  }
-
-  object Response {
-    def apply[A](implicit service: Response[A]): Response[A] = service
-  }
-
-  object ops {
-
-    implicit class RequestOps[A: Request](value: EitherErr[A]) {
-      def query()(implicit config: ServiceConfig, system: ActorSystem[_]): HttpRequest = Request[A].query(value)
+  override def response(value: EitherErr[AttachmentRequestKey], response: HttpResponse)(
+    implicit system: ActorSystem[_]): Future[EitherErr[(AttachmentRequestKey, ByteString)]] =
+    if (response.status == StatusCodes.OK) {
+      import system.executionContext
+      response.entity.dataBytes
+        .runFold(ByteString.empty)(_ ++ _)
+        .map(bytes => (bytes.utf8String.parseJson.convertTo[SearchResponse], bytes))
+        .map(Right(_).withLeft[ErrorMessage])
+        .map(_.filterOrElse(_._1.hits.total == 1, ErrorMessage("Invalid nrSubmissionId"))
+          .flatMap(response => value.map((_, response._2))))
+    } else {
+      system.log.error(s"Response status ${response.status} received rom ES server for request: [$value]. Full response is: [$response]")
+      val error = ErrorMessage(s"Response status ${response.status} from ES server", StatusCodes.InternalServerError)
+      response.discardEntityBytes()
+      Future.successful(Left(error))
     }
 
-    implicit class CallOps[A: Call](value: EitherErr[A]) {
-      def flow()(
-        implicit system: ActorSystem[_],
-        config: ServiceConfig): Flow[(HttpRequest, EitherErr[A]), (Try[HttpResponse], EitherErr[A]), Any] = Call[A].run()
-    }
+  override def call()(implicit system: ActorSystem[_], config: ServiceConfig)
+    : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] =
+    if (config.isElasticSearchProtocolSecure)
+      Http().cachedHostConnectionPoolHttps[EitherErr[AttachmentRequestKey]](config.elasticSearchHost)
+    else
+      Http().cachedHostConnectionPool[EitherErr[AttachmentRequestKey]](config.elasticSearchHost)
 
-    implicit class ResponseOps[A: Response](value: EitherErr[A]) {
-      def parse(response: HttpResponse)(implicit system: ActorSystem[_]): Future[EitherErr[A]] =
-        Response[A].parse(value, response)
-    }
+  override def request(data: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig, system: ActorSystem[_]): HttpRequest =
+    data.toOption
+      .flatMap(value => config.maybeNotableEvents(value.apiKey).map(notableEvents => (value, notableEvents)))
+      .map {
+        case (attachmentRequestKey: AttachmentRequestKey, notableEvents) =>
+          import RequestsSigner._
 
-  }
+          val path = buildPath(notableEvents)
+          val body =
+            s"""{"query": {"bool":{"must":[{"match":{"attachmentIds.keyword":"${attachmentRequestKey.request.attachmentId}"}},{"ids":{"values":"${attachmentRequestKey.request.nrSubmissionId}"}}]}}}"""
+          val request = createSignedRequest(HttpMethods.POST, config.elasticSearchUri, path, body)
 
-  implicit val defaultIndexingService: Indexing[AttachmentRequestKey] = new Indexing[AttachmentRequestKey] {
-    override def run()(implicit system: ActorSystem[_], config: ServiceConfig)
-      : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] =
-      if (config.isElasticSearchProtocolSecure)
-        Http().cachedHostConnectionPoolHttps[EitherErr[AttachmentRequestKey]](config.elasticSearchHost)
-      else
-        Http().cachedHostConnectionPool[EitherErr[AttachmentRequestKey]](config.elasticSearchHost)
+          system.log.info(
+            s"query for attachmentRequestKey: [$attachmentRequestKey] and notableEvents: [$notableEvents] produced path: [$path], body: [$body] and request: [$request]")
 
-    override def query(data: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig, system: ActorSystem[_]): HttpRequest =
-      data.toOption
-        .flatMap(value => config.maybeNotableEvents(value.apiKey).map(notableEvents => (value, notableEvents)))
-        .map {
-          case (attachmentRequestKey: AttachmentRequestKey, notableEvents) =>
-            import RequestsSigner._
-
-            val path = buildPath(notableEvents)
-            val body =
-              s"""{"query": {"bool":{"must":[{"match":{"attachmentIds.keyword":"${attachmentRequestKey.request.attachmentId}"}},{"ids":{"values":"${attachmentRequestKey.request.nrSubmissionId}"}}]}}}"""
-            val request = createSignedRequest(HttpMethods.POST, config.elasticSearchUri, path, body)
-
-            system.log.info(
-              s"query for attachmentRequestKey: [$attachmentRequestKey] and notableEvents: [$notableEvents] produced path: [$path], body: [$body] and request: [$request]")
-
-            request
-        }
-        .getOrElse(HttpRequest())
-
-    override def parse(value: EitherErr[AttachmentRequestKey], response: HttpResponse)(
-      implicit system: ActorSystem[_]): Future[EitherErr[AttachmentRequestKey]] =
-      if (response.status == StatusCodes.OK) {
-        import system.executionContext
-        response.entity.dataBytes
-          .runFold(ByteString.empty)(_ ++ _)
-          .map(_.utf8String)
-          .map(_.parseJson)
-          .map(_.convertTo[SearchResponse])
-          .map(Right(_).withLeft[ErrorMessage])
-          .map(_.filterOrElse(_.hits.total == 1, ErrorMessage("Invalid nrSubmissionId")).flatMap(_ => value))
-      } else {
-        system.log.error(s"Response status ${response.status} received rom ES server for request: [$value]. Full response is: [$response]")
-
-        val error = ErrorMessage(s"Response status ${response.status} from ES server", StatusCodes.InternalServerError)
-
-        response.discardEntityBytes()
-        Future.successful(Left(error))
+          request
       }
-  }
+      .getOrElse(HttpRequest())
+
+}
+
+object Indexing {
+
+  implicit val defaultIndexingService: IndexingService = new IndexingService()
 
   def buildPath(notableEvent: Set[String]) = s"/${notableEvent.map(_.concat("-attachments")).mkString(",")}/_search"
 }

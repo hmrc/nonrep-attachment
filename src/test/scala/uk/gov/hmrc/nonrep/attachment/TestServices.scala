@@ -36,25 +36,26 @@ object TestServices extends TestConfigUtils {
   object success {
 
     implicit val successfulStorage: Storage[AttachmentRequestKey] = new Storage[AttachmentRequestKey]() {
-      override def s3Call(implicit system: ActorSystem[_])
+      override def call()(implicit system: ActorSystem[_], config: ServiceConfig)
         : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] =
         Flow[(HttpRequest, EitherErr[AttachmentRequestKey])].map {
           case (_, request) => (Try(HttpResponse(OK)), request)
         }
 
-      override def s3Request(data: EitherErr[AttachmentRequestKey]): HttpRequest = HttpRequest()
+      override def request(data: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig, system: ActorSystem[_]): HttpRequest =
+        HttpRequest()
 
-      override def s3Response(request: EitherErr[AttachmentRequestKey], response: HttpResponse)(
+      override def response(request: EitherErr[AttachmentRequestKey], response: HttpResponse)(
         implicit system: ActorSystem[_]): Future[EitherErr[(AttachmentRequestKey, ByteString)]] =
         Future.successful(request.map((_, ByteString(sampleAttachment))))
 
-      override def putS3Object(attachment: AttachmentRequestKey, file: ByteString)(
+      override def upload(attachment: AttachmentRequestKey, file: ByteString)(
         implicit system: ActorSystem[_],
         config: ServiceConfig): Future[EitherErr[AttachmentRequestKey]] = Future.successful(Right(attachment))
     }
 
     implicit val successfulIndexing: Indexing[AttachmentRequestKey] = new Indexing[AttachmentRequestKey]() {
-      override def query(data: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig, system: ActorSystem[_]): HttpRequest =
+      override def request(data: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig, system: ActorSystem[_]): HttpRequest =
         data.toOption
           .map { value =>
             val path = Indexing.buildPath(notableEventsOrEmpty(config, value.apiKey))
@@ -64,40 +65,41 @@ object TestServices extends TestConfigUtils {
           }
           .getOrElse(HttpRequest())
 
-      override def run()(implicit system: ActorSystem[_], config: ServiceConfig)
+      override def call()(implicit system: ActorSystem[_], config: ServiceConfig)
         : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] =
         Flow[(HttpRequest, EitherErr[AttachmentRequestKey])].map {
           case (_, request) => (Try(HttpResponse(OK)), request)
         }
 
-      override def parse(value: EitherErr[AttachmentRequestKey], response: HttpResponse)(
-        implicit system: ActorSystem[_]): Future[EitherErr[AttachmentRequestKey]] =
-        Future.successful(value)
+      override def response(value: EitherErr[AttachmentRequestKey], response: HttpResponse)(
+        implicit system: ActorSystem[_]): Future[EitherErr[(AttachmentRequestKey, ByteString)]] =
+        Future.successful(value.map((_, ByteString.empty)))
     }
     val flow: AttachmentFlow = new AttachmentFlow() {}
   }
 
   object failure {
     implicit val failingStorage: Storage[AttachmentRequestKey] = new Storage[AttachmentRequestKey]() {
-      override def s3Call(implicit system: ActorSystem[_])
-      : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] =
+      override def call()(implicit system: ActorSystem[_], config: ServiceConfig)
+        : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] =
         Flow[(HttpRequest, EitherErr[AttachmentRequestKey])].map {
           case (_, request) => (Try(HttpResponse(InternalServerError)), request)
         }
 
-      override def s3Request(data: EitherErr[AttachmentRequestKey]): HttpRequest = HttpRequest()
+      override def request(data: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig, system: ActorSystem[_]): HttpRequest =
+        HttpRequest()
 
-      override def s3Response(request: EitherErr[AttachmentRequestKey], response: HttpResponse)(
+      override def response(request: EitherErr[AttachmentRequestKey], response: HttpResponse)(
         implicit system: ActorSystem[_]): Future[EitherErr[(AttachmentRequestKey, ByteString)]] =
         Future.successful(Left(ErrorMessage("S3 download error")))
 
-      override def putS3Object(attachment: AttachmentRequestKey, file: ByteString)(
+      override def upload(attachment: AttachmentRequestKey, file: ByteString)(
         implicit system: ActorSystem[_],
         config: ServiceConfig): Future[EitherErr[AttachmentRequestKey]] = Future.successful(Left(ErrorMessage("S3 upload error")))
     }
 
     implicit val indexingWithUpstreamFailureAndParsingError: Indexing[AttachmentRequestKey] = new Indexing[AttachmentRequestKey]() {
-      override def query(data: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig, system: ActorSystem[_]): HttpRequest =
+      override def request(data: EitherErr[AttachmentRequestKey])(implicit config: ServiceConfig, system: ActorSystem[_]): HttpRequest =
         data.toOption
           .map { value =>
             val path = Indexing.buildPath(notableEventsOrEmpty(config, value.apiKey))
@@ -107,14 +109,14 @@ object TestServices extends TestConfigUtils {
           }
           .getOrElse(HttpRequest())
 
-      override def run()(implicit system: ActorSystem[_], config: ServiceConfig)
+      override def call()(implicit system: ActorSystem[_], config: ServiceConfig)
         : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] =
         Flow[(HttpRequest, EitherErr[AttachmentRequestKey])].map {
           case (_, request) => (Try(HttpResponse(InternalServerError)), request)
         }
 
-      override def parse(value: EitherErr[AttachmentRequestKey], response: HttpResponse)(
-        implicit system: ActorSystem[_]): Future[EitherErr[AttachmentRequestKey]] =
+      override def response(value: EitherErr[AttachmentRequestKey], response: HttpResponse)(
+        implicit system: ActorSystem[_]): Future[EitherErr[(AttachmentRequestKey, ByteString)]] =
         Future.successful(Left(ErrorMessage("nrSubmissionId validation error")))
     }
     val flow: AttachmentFlow = new AttachmentFlow() {}

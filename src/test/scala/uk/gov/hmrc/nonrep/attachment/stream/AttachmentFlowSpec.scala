@@ -63,7 +63,7 @@ class AttachmentFlowSpec extends BaseSpec with ScalaFutures with ScalatestRouteT
       val attachmentId = UUID.randomUUID().toString
       val submissionId = UUID.randomUUID().toString
       val source = TestSource.probe[(Try[HttpResponse], EitherErr[AttachmentRequestKey])]
-      val sink = TestSink.probe[EitherErr[AttachmentRequestKey]]
+      val sink = TestSink.probe[EitherErr[(AttachmentRequestKey, ByteString)]]
       val (pub, sub) = source.via(flow.parseEsResponse).toMat(sink)(Keep.both).run()
       pub
         .sendNext((Try(HttpResponse()), Right(AttachmentRequestKey(apiKey, validAttachmentRequest(attachmentId, submissionId)))))
@@ -238,7 +238,7 @@ class AttachmentFlowSpec extends BaseSpec with ScalaFutures with ScalatestRouteT
       val attachmentId = UUID.randomUUID().toString
       val submissionId = UUID.randomUUID().toString
       val source = TestSource.probe[(Try[HttpResponse], EitherErr[AttachmentRequestKey])]
-      val sink = TestSink.probe[Either[ErrorMessage, AttachmentRequestKey]]
+      val sink = TestSink.probe[Either[ErrorMessage, (AttachmentRequestKey, ByteString)]]
       val (pub, sub) = source.via(flow.parseEsResponse).toMat(sink)(Keep.both).run()
       pub
         .sendNext((Try(HttpResponse()), Right(AttachmentRequestKey(apiKey, validAttachmentRequest(attachmentId, submissionId)))))

@@ -21,27 +21,36 @@ import scala.concurrent.Future
 import scala.util.{Failure, Success, Try}
 
 object AttachmentFlow {
-  def apply()(implicit system: ActorSystem[_], config: ServiceConfig, es: Indexing[AttachmentRequestKey], storage: Storage[AttachmentRequestKey]) = new AttachmentFlow()
+  def apply()(
+    implicit system: ActorSystem[_],
+    config: ServiceConfig,
+    index: Indexing[AttachmentRequestKey],
+    storage: Storage[AttachmentRequestKey]) =
+    new AttachmentFlow()
 }
 
-class AttachmentFlow()(implicit val system: ActorSystem[_], config: ServiceConfig, es: Indexing[AttachmentRequestKey], storage: Storage[AttachmentRequestKey]) {
+class AttachmentFlow()(
+  implicit val system: ActorSystem[_],
+  config: ServiceConfig,
+  index: Indexing[AttachmentRequestKey],
+  storage: Storage[AttachmentRequestKey]) {
 
-  import Indexing.ops._
+  //import Indexing.ops._
 
   val validateAttachmentRequest
-    : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] = es.run()
+    : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] = index.call()
 
-  val validateXApiHeader:  Flow[IncomingRequest, EitherErr[IncomingRequest], NotUsed] =
+  val validateXApiHeader: Flow[IncomingRequest, EitherErr[IncomingRequest], NotUsed] =
     Flow[IncomingRequest].map { incomingRequest =>
       config.maybeNotableEvents(incomingRequest.apiKey) match {
         case Some(_) => Right(incomingRequest)
-        case None => Left(ErrorMessage("Unauthorised access: Invalid X-API-Key", Unauthorized))
+        case None    => Left(ErrorMessage("Unauthorised access: Invalid X-API-Key", Unauthorized))
       }
     }
 
   val validateRequest: Flow[EitherErr[IncomingRequest], EitherErr[AttachmentRequestKey], NotUsed] =
     Flow[EitherErr[IncomingRequest]].map { incomingRequestOrError =>
-      incomingRequestOrError.flatMap{ incomingRequest =>
+      incomingRequestOrError.flatMap { incomingRequest =>
         Try(incomingRequest.request.convertTo[AttachmentRequest]).toEither.left
           .map(t => ErrorMessage("JSON parsing error", error = Some(t)))
           .map(AttachmentRequestKey(incomingRequest.apiKey, _))
@@ -50,15 +59,15 @@ class AttachmentFlow()(implicit val system: ActorSystem[_], config: ServiceConfi
 
   val createEsRequest: Flow[EitherErr[AttachmentRequestKey], (HttpRequest, EitherErr[AttachmentRequestKey]), NotUsed] =
     Flow[EitherErr[AttachmentRequestKey]].map { data =>
-      (data.query(), data)
+      (index.request(data), data)
     }
 
-  val parseEsResponse: Flow[(Try[HttpResponse], EitherErr[AttachmentRequestKey]), EitherErr[AttachmentRequestKey], NotUsed] =
+  val parseEsResponse: Flow[(Try[HttpResponse], EitherErr[AttachmentRequestKey]), EitherErr[(AttachmentRequestKey, ByteString)], NotUsed] =
     Flow[(Try[HttpResponse], EitherErr[AttachmentRequestKey])]
       .mapAsyncUnordered(8) {
         case (httpResponse, request) =>
           httpResponse match {
-            case Success(response)  => request.parse(response)
+            case Success(response)  => index.response(request, response)
             case Failure(exception) => Future.failed(exception)
           }
       }
@@ -87,11 +96,12 @@ class AttachmentFlow()(implicit val system: ActorSystem[_], config: ServiceConfi
       }
     }
 
-  val presignedS3URLs: Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] = storage.s3Call
+  val presignedS3URLs: Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] =
+    storage.call()
 
   val createS3Request: Flow[EitherErr[AttachmentRequestKey], (HttpRequest, EitherErr[AttachmentRequestKey]), NotUsed] = {
     Flow[EitherErr[AttachmentRequestKey]].map { data =>
-      (storage.s3Request(data), data)
+      (storage.request(data), data)
     }
   }
 
@@ -100,54 +110,61 @@ class AttachmentFlow()(implicit val system: ActorSystem[_], config: ServiceConfi
       .mapAsyncUnordered(8) {
         case (httpResponse, request) =>
           httpResponse match {
-            case Success(response)  => storage.s3Response(request, response)
+            case Success(response)  => storage.response(request, response)
             case Failure(exception) => Future.failed(exception)
           }
-      }.map(_.left.map(error => ErrorMessage(error.message, BadRequest)))
+      }
+      .map(_.left.map(error => ErrorMessage(error.message, BadRequest)))
       .withAttributes(ActorAttributes.supervisionStrategy(stoppingDecider))
 
   val getAttachmentMaterial: Flow[EitherErr[AttachmentRequestKey], EitherErr[(AttachmentRequestKey, ByteString)], NotUsed] = {
-    Flow.fromGraph(
-      GraphDSL.create() { implicit builder =>
-        import GraphDSL.Implicits._
+    Flow.fromGraph(GraphDSL.create() { implicit builder =>
+      import GraphDSL.Implicits._
 
-        val requestShape = builder.add(createS3Request)
-        val responseShape = builder.add(parseS3Response)
+      val requestShape = builder.add(createS3Request)
+      val responseShape = builder.add(parseS3Response)
 
-        requestShape ~> presignedS3URLs ~> responseShape
+      requestShape ~> presignedS3URLs ~> responseShape
 
-        FlowShape(requestShape.in, responseShape.out)
-      })}
+      FlowShape(requestShape.in, responseShape.out)
+    })
+  }
 
-  val validateAttachmentChecksum: Flow[EitherErr[(AttachmentRequestKey, ByteString)], EitherErr[(AttachmentRequestKey, ByteString)], NotUsed] =
+  val validateAttachmentChecksum
+    : Flow[EitherErr[(AttachmentRequestKey, ByteString)], EitherErr[(AttachmentRequestKey, ByteString)], NotUsed] =
     Flow[EitherErr[(AttachmentRequestKey, ByteString)]].map { data =>
-      data.filterOrElse(entry => {
-        val (attachment, file) = entry
-        attachment.request.payloadSha256Checksum == file.toArray[Byte].calculateSha256
-      }, {
-        val error419 = StatusCodes.custom(419, "Checksum Failed")
-        ErrorMessage(error419.reason(), error419)
-      }).map{ case (attachment, file) => (attachment, file)}
-    }
-
-  val extractFileContent: Flow[EitherErr[(AttachmentRequest, ByteString)], EitherErr[ByteString], NotUsed] =
-    Flow[EitherErr[(AttachmentRequest, ByteString)]].map {
-      _.map(_._2)
+      data
+        .filterOrElse(
+          entry => {
+            val (attachment, file) = entry
+            attachment.request.payloadSha256Checksum == file.toArray[Byte].calculateSha256
+          }, {
+            val error419 = StatusCodes.custom(419, "Checksum Failed")
+            ErrorMessage(error419.reason(), error419)
+          }
+        )
+        .map { case (attachment, file) => (attachment, file) }
     }
 
   val putAttachmentForProcessing: Flow[EitherErr[(AttachmentRequestKey, ByteString)], EitherErr[AttachmentRequestKey], NotUsed] =
-    Flow[EitherErr[(AttachmentRequestKey, ByteString)]].mapAsyncUnordered(8) {
-      case Right((attachment, file)) => storage.putS3Object(attachment, file)
-      case Left(error) => Future.failed(new RuntimeException(error.message))
-    }.map(_.left.map(error => ErrorMessage(error.message, InternalServerError)))
+    Flow[EitherErr[(AttachmentRequestKey, ByteString)]]
+      .mapAsyncUnordered(8) {
+        case Right((attachment, file)) => storage.upload(attachment, file)
+        case Left(error)               => Future.failed(new RuntimeException(error.message))
+      }
+      .map(_.left.map(error => ErrorMessage(error.message, InternalServerError)))
       .withAttributes(ActorAttributes.supervisionStrategy(stoppingDecider))
-
 
   private def partitionRequests[A]() =
     Partition[EitherErr[A]](2, {
       case Left(_)  => 0
       case Right(_) => 1
     })
+
+  val extractRequest: Flow[EitherErr[(AttachmentRequestKey, ByteString)], EitherErr[AttachmentRequestKey], NotUsed] =
+    Flow[EitherErr[(AttachmentRequestKey, ByteString)]].map {
+      _.map(_._1)
+    }
 
   /**
   partitionEsCalls |~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>|
@@ -180,7 +197,7 @@ class AttachmentFlow()(implicit val system: ActorSystem[_], config: ServiceConfi
         broadcastEsRequest ~> validateAttachmentRequest ~> broadcastEsResponse
         broadcastEsResponse ~> zipEsCalls.in1
         zipEsCalls.out ~> finishEsMetrics ~> Sink.ignore
-        broadcastEsResponse ~> parseEsResponse ~> mergeEsCalls
+        broadcastEsResponse ~> parseEsResponse ~> extractRequest ~> mergeEsCalls
         mergeEsCalls ~> collectEsMetrics ~> partitionS3Calls
         partitionS3Calls ~> mergeS3Calls
         partitionS3Calls ~> getAttachmentMaterial ~> validateAttachmentChecksum ~> putAttachmentForProcessing ~> mergeS3Calls
