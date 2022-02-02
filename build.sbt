@@ -1,8 +1,8 @@
 enablePlugins(GitVersioning)
 enablePlugins(BuildInfoPlugin)
 
-val akkaHttpVersion = "10.2.4"
-val akkaVersion = "2.6.14"
+val akkaHttpVersion = "10.2.7"
+val akkaVersion = "2.6.18"
 val logbackVersion = "1.2.3"
 val metricsVersion = "1.6.0"
 val jvmMetricsVersion = "3.0.2"
@@ -41,6 +41,7 @@ lazy val root = (project in file(".")).
 
     libraryDependencies ++= Seq(
       "com.typesafe.akka"         %% "akka-http"                    % akkaHttpVersion,
+      "com.typesafe.akka"         %% "akka-http-xml"                % akkaHttpVersion,
       "com.typesafe.akka"         %% "akka-http-spray-json"         % akkaHttpVersion,
       "com.typesafe.akka"         %% "akka-actor-typed"             % akkaVersion,
       "com.typesafe.akka"         %% "akka-stream"                  % akkaVersion,
@@ -55,7 +56,8 @@ lazy val root = (project in file(".")).
       "io.prometheus"             %  "simpleclient_dropwizard"      % prometheusClientsVersion,
       "io.prometheus"             %  "simpleclient_hotspot"         % prometheusClientsVersion,
       "software.amazon.awssdk"    %  "auth"                         % awsSdkVersion,
-      "org.apache.httpcomponents" % "httpclient"                    % "4.5.13",
+      "org.apache.httpcomponents" %  "httpclient"                   % "4.5.13",
+      "com.lightbend.akka"        %% "akka-stream-alpakka-s3"       % "3.0.4",
 
       "com.typesafe.akka"    %% "akka-http-testkit"        % akkaHttpVersion % Test,
       "com.typesafe.akka"    %% "akka-actor-testkit-typed" % akkaVersion     % Test,

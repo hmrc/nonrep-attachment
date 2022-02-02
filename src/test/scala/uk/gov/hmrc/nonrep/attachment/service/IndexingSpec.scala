@@ -14,7 +14,6 @@ import uk.gov.hmrc.nonrep.attachment.TestServices.entityToString
 import uk.gov.hmrc.nonrep.attachment.models.{AttachmentRequest, AttachmentRequestKey}
 import uk.gov.hmrc.nonrep.attachment.server.ServiceConfig
 
-
 class IndexingSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
 
   private implicit val config: ServiceConfig = new ServiceConfig()
@@ -31,49 +30,43 @@ class IndexingSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
     }
 
     "execute ES read query" in {
-      import Indexing.ops._
-      import TestServices.success._
+      val index = TestServices.success.successfulIndexing
       val attachmentId = UUID.randomUUID().toString
       val submissionId = UUID.randomUUID().toString
       val request = AttachmentRequest("", attachmentId, "", "", submissionId)
       val attachmentRequest: EitherErr[AttachmentRequestKey] = Right(AttachmentRequestKey(apiKey, request))
-      val httpRequest = attachmentRequest.query()
-      val esValidation = attachmentRequest.flow()
+      val httpRequest = index.request(attachmentRequest)
+      val esValidation = index.call()
       whenReady(Source.single((httpRequest, attachmentRequest)).via(esValidation).toMat(Sink.head)(Keep.right).run()) {
-        case (tryResponse, entity) => {
+        case (tryResponse, entity) =>
           tryResponse.isSuccess shouldBe true
           entity.toOption.get.request.attachmentId shouldBe attachmentId
           entity.toOption.get.request.nrSubmissionId shouldBe submissionId
-        }
       }
     }
 
     "fail on ES upstream failure" in {
-      import Indexing.ops._
-      import TestServices.failure._
+      val index = TestServices.failure.indexingWithUpstreamFailureAndParsingError
       val attachmentId = UUID.randomUUID().toString
       val submissionId = UUID.randomUUID().toString
       val request = AttachmentRequest("", attachmentId, "", "", submissionId)
       val attachmentRequest: EitherErr[AttachmentRequestKey] = Right(AttachmentRequestKey(apiKey, request))
-      val httpRequest = attachmentRequest.query()
-      val esValidation = attachmentRequest.flow()
+      val httpRequest = index.request(attachmentRequest)
+      val esValidation = index.call()
       whenReady(Source.single((httpRequest, attachmentRequest)).via(esValidation).toMat(Sink.head)(Keep.right).run()) {
-        case (tryResponse, entity) => {
+        case (tryResponse, _) =>
           tryResponse.isSuccess shouldBe true
           tryResponse.get.status shouldBe StatusCodes.InternalServerError
-        }
       }
     }
 
     "create http request" in {
-      import Indexing.ops._
-      import TestServices.success._
-
+      val index = TestServices.success.successfulIndexing
       val attachmentId = UUID.randomUUID().toString
       val submissionId = UUID.randomUUID().toString
       val request = AttachmentRequest("", attachmentId, "", "", submissionId)
       val attachmentRequest: EitherErr[AttachmentRequestKey] = Right(AttachmentRequestKey(apiKey, request))
-      val httpRequest = attachmentRequest.query()
+      val httpRequest = index.request(attachmentRequest)
 
       httpRequest.method shouldBe HttpMethods.POST
       httpRequest.uri.toString shouldBe "/vat-registration-attachments/_search"
