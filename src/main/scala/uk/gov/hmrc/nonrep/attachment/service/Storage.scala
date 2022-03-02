@@ -1,6 +1,9 @@
 package uk.gov.hmrc.nonrep.attachment
 package service
 
+import java.io.ByteArrayOutputStream
+import java.util.zip.{ZipEntry, ZipOutputStream}
+
 import akka.actor.typed.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.client.RequestBuilding.Get
@@ -10,26 +13,46 @@ import akka.stream.alpakka.s3.MetaHeaders
 import akka.stream.alpakka.s3.scaladsl.S3
 import akka.stream.scaladsl.{Flow, Source}
 import akka.util.ByteString
+import spray.json._
 import uk.gov.hmrc.nonrep.attachment.models.AttachmentRequestKey
 import uk.gov.hmrc.nonrep.attachment.server.ServiceConfig
 import uk.gov.hmrc.nonrep.attachment.utils.CryptoUtils
+import uk.gov.hmrc.nonrep.attachment.utils.JsonFormats._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.util.Try
 
 trait Storage[A] extends Service[A] {
-  def upload(data: A, file: ByteString)(implicit system: ActorSystem[_], config: ServiceConfig): Future[EitherErr[A]]
+  def uploadBundle(data: A, file: ByteString)(implicit system: ActorSystem[_], config: ServiceConfig): Future[EitherErr[A]]
+  def createBundle(data: A, file: ByteString)(implicit system: ActorSystem[_], config: ServiceConfig): ByteString
 }
 
 class StorageService extends Storage[AttachmentRequestKey] {
   import Storage._
 
-  override def upload(attachment: AttachmentRequestKey, file: ByteString)(
+  override def createBundle(data: AttachmentRequestKey, file: ByteString)(
+    implicit system: ActorSystem[_],
+    config: ServiceConfig): ByteString = {
+    val bytes = new ByteArrayOutputStream()
+    val zip = new ZipOutputStream(bytes)
+    zip.putNextEntry(new ZipEntry(METADATA_FILE))
+    zip.write(data.request.toJson.prettyPrint.getBytes("utf-8"))
+    zip.closeEntry()
+    zip.putNextEntry(new ZipEntry(ATTACHMENT_FILE))
+    zip.write(file.toArray[Byte])
+    zip.closeEntry()
+    val result = ByteString(bytes.toByteArray)
+    zip.close()
+    bytes.close()
+    result
+  }
+
+  override def uploadBundle(attachment: AttachmentRequestKey, file: ByteString)(
     implicit system: ActorSystem[_],
     config: ServiceConfig): Future[EitherErr[AttachmentRequestKey]] =
     Source
-      .single(file)
+      .single(createBundle(attachment, file))
       .runWith(
         S3.multipartUpload(
             config.attachmentsBucket,
@@ -56,7 +79,7 @@ class StorageService extends Storage[AttachmentRequestKey] {
       .getOrElse(throw new RuntimeException("Error creating S3 upstream request"))
 
   override def call()(implicit system: ActorSystem[_], config: ServiceConfig)
-  : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] =
+    : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] =
     Http().superPool[EitherErr[AttachmentRequestKey]]()
 
   override def response(request: EitherErr[AttachmentRequestKey], response: HttpResponse)(

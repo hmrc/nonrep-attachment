@@ -32,6 +32,8 @@ object TestServices extends TestConfigUtils {
 
   val sampleAttachment: Array[Byte] =
     Files.readAllBytes(new File(getClass.getClassLoader.getResource("0f0d6508-7f9f-11ec-b1fb-a732847931b5").getFile).toPath)
+  val sampleAttachmentBundle: Array[Byte] =
+    Files.readAllBytes(new File(getClass.getClassLoader.getResource("0f0d6508-7f9f-11ec-b1fb-a732847931b5.zip").getFile).toPath)
 
   object success {
 
@@ -49,9 +51,13 @@ object TestServices extends TestConfigUtils {
         implicit system: ActorSystem[_]): Future[EitherErr[(AttachmentRequestKey, ByteString)]] =
         Future.successful(request.map((_, ByteString(sampleAttachment))))
 
-      override def upload(attachment: AttachmentRequestKey, file: ByteString)(
+      override def uploadBundle(attachment: AttachmentRequestKey, file: ByteString)(
         implicit system: ActorSystem[_],
         config: ServiceConfig): Future[EitherErr[AttachmentRequestKey]] = Future.successful(Right(attachment))
+
+      override def createBundle(data: AttachmentRequestKey, file: ByteString)(
+        implicit system: ActorSystem[_],
+        config: ServiceConfig): ByteString = Storage.defaultStorageService.createBundle(data, file)(system, config)
     }
 
     implicit val successfulIndexing: Indexing[AttachmentRequestKey] = new Indexing[AttachmentRequestKey]() {
@@ -93,9 +99,15 @@ object TestServices extends TestConfigUtils {
         implicit system: ActorSystem[_]): Future[EitherErr[(AttachmentRequestKey, ByteString)]] =
         Future.successful(Left(ErrorMessage("S3 download error")))
 
-      override def upload(attachment: AttachmentRequestKey, file: ByteString)(
+      override def uploadBundle(attachment: AttachmentRequestKey, file: ByteString)(
         implicit system: ActorSystem[_],
-        config: ServiceConfig): Future[EitherErr[AttachmentRequestKey]] = Future.successful(Left(ErrorMessage("S3 upload error", InternalServerError)))
+        config: ServiceConfig): Future[EitherErr[AttachmentRequestKey]] =
+        Future.successful(Left(ErrorMessage("S3 upload error", InternalServerError)))
+
+      override def createBundle(data: AttachmentRequestKey, file: ByteString)(
+        implicit system: ActorSystem[_],
+        config: ServiceConfig): ByteString =
+        ByteString(sampleAttachmentBundle)
     }
 
     implicit val indexingWithUpstreamFailureAndParsingError: Indexing[AttachmentRequestKey] = new Indexing[AttachmentRequestKey]() {
