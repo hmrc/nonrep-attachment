@@ -25,16 +25,17 @@ class StorageSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
 
   "For attachment api storage service" should {
 
+    val attachmentId = UUID.randomUUID().toString
+    val submissionId = UUID.randomUUID().toString
+    val request = AttachmentRequest("", attachmentId, "", "", submissionId)
+    val attachmentRequestKey = AttachmentRequestKey(apiKey, request)
+    val attachmentRequest: EitherErr[AttachmentRequestKey] = Right(attachmentRequestKey)
+
     "create a bundle with metadata and attachment inside a zip file" in {
+
       val storage = TestServices.success.successfulStorage
 
-      val attachmentId = UUID.randomUUID().toString
-      val submissionId = UUID.randomUUID().toString
-      val request = AttachmentRequest("", attachmentId, "", "", submissionId)
-      val attachmentRequestKey = AttachmentRequestKey(apiKey, request)
-
       val result = storage.createBundle(attachmentRequestKey, ByteString(TestServices.sampleAttachment))
-
       val zip = new ZipInputStream(new ByteArrayInputStream(result.toArray[Byte]))
 
       val content = LazyList
@@ -58,10 +59,7 @@ class StorageSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
 
     "make communication with S3 via request-call-response pattern" in {
       val storage = TestServices.success.successfulStorage
-      val attachmentId = UUID.randomUUID().toString
-      val submissionId = UUID.randomUUID().toString
-      val request = AttachmentRequest("", attachmentId, "", "", submissionId)
-      val attachmentRequest: EitherErr[AttachmentRequestKey] = Right(AttachmentRequestKey(apiKey, request))
+
       val httpRequest = storage.request(attachmentRequest)
       val s3Call = storage.call()
       whenReady(Source.single((httpRequest, attachmentRequest)).via(s3Call).toMat(Sink.head)(Keep.right).run()) {
@@ -75,10 +73,7 @@ class StorageSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
 
     "fail on S3 upstream failure" in {
       val storage = TestServices.failure.failingStorage
-      val attachmentId = UUID.randomUUID().toString
-      val submissionId = UUID.randomUUID().toString
-      val request = AttachmentRequest("", attachmentId, "", "", submissionId)
-      val attachmentRequest: EitherErr[AttachmentRequestKey] = Right(AttachmentRequestKey(apiKey, request))
+
       val httpRequest = storage.request(attachmentRequest)
       val s3Call = storage.call()
       whenReady(Source.single((httpRequest, attachmentRequest)).via(s3Call).toMat(Sink.head)(Keep.right).run()) {
