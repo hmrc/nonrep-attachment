@@ -42,10 +42,8 @@ class StorageService extends Storage[AttachmentRequestKey] {
     zip.putNextEntry(new ZipEntry(ATTACHMENT_FILE))
     zip.write(file.toArray[Byte])
     zip.closeEntry()
-    val result = ByteString(bytes.toByteArray)
     zip.close()
-    bytes.close()
-    result
+    ByteString(bytes.toByteArray)
   }
 
   override def uploadBundle(attachment: AttachmentRequestKey, file: ByteString)(
@@ -56,7 +54,7 @@ class StorageService extends Storage[AttachmentRequestKey] {
       .runWith(
         S3.multipartUpload(
             config.attachmentsBucket,
-            attachment.request.attachmentId,
+            s"${attachment.request.attachmentId}.zip",
             metaHeaders = MetaHeaders(Map("Content-MD5" -> file.toArray[Byte].calculateMD5)))
           .mapMaterializedValue(_.map { _ =>
             Right(attachment).withLeft[ErrorMessage]
