@@ -1,7 +1,8 @@
 package uk.gov.hmrc.nonrep.attachment
 package service
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream, FileInputStream}
+import java.nio.file.Files
 import java.util.UUID
 import java.util.zip.ZipInputStream
 
@@ -36,7 +37,9 @@ class StorageSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
       val storage = TestServices.success.successfulStorage
 
       val result = storage.createBundle(attachmentRequestKey, ByteString(TestServices.sampleAttachment))
-      val zip = new ZipInputStream(new ByteArrayInputStream(result.toArray[Byte]))
+      val zipFile = Files.createTempFile(attachmentId, "zip")
+      Files.write(zipFile, result.toArray[Byte])
+      val zip = new ZipInputStream(new FileInputStream(zipFile.toFile))
 
       val content = LazyList
         .continually(zip.getNextEntry)
