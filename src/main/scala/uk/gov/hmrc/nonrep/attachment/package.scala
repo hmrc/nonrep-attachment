@@ -3,6 +3,8 @@ package uk.gov.hmrc.nonrep
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 
 package object attachment {
+  val METADATA_FILE = "metadata.json"
+  val ATTACHMENT_FILE = "attachment.data"
 
   type Id = String
   type EitherErr[T] = Either[ErrorMessage, T]

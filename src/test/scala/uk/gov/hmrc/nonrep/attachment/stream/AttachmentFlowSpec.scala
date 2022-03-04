@@ -296,7 +296,7 @@ class AttachmentFlowSpec extends BaseSpec with ScalaFutures with ScalatestRouteT
       }
     }
 
-    "transient store failure for putting attachment" in {
+    "report transient store failure for putting attachment" in {
       val attachmentId = UUID.randomUUID().toString
       val submissionId = UUID.randomUUID().toString
       val source = TestSource.probe[Either[ErrorMessage, (AttachmentRequestKey, ByteString)]]

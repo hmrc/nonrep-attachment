@@ -3,7 +3,7 @@ package stream
 
 import akka.NotUsed
 import akka.actor.typed.ActorSystem
-import akka.http.scaladsl.model.StatusCodes.{BadRequest, InternalServerError, Unauthorized}
+import akka.http.scaladsl.model.StatusCodes.{BadRequest, Unauthorized}
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse, StatusCodes}
 import akka.stream.Supervision._
 import akka.stream.scaladsl.{Broadcast, Flow, GraphDSL, Merge, Partition, Sink, ZipWith}
@@ -146,7 +146,7 @@ class AttachmentFlow()(
   val putAttachmentForProcessing: Flow[EitherErr[(AttachmentRequestKey, ByteString)], EitherErr[AttachmentRequestKey], NotUsed] =
     Flow[EitherErr[(AttachmentRequestKey, ByteString)]]
       .mapAsyncUnordered(8) {
-        case Right((attachment, file)) => storage.upload(attachment, file)
+        case Right((attachment, file)) => storage.uploadBundle(attachment, file)
         case Left(error)               => Future.successful(Left(error).withRight[AttachmentRequestKey])
       }
       .withAttributes(ActorAttributes.supervisionStrategy(stoppingDecider))
