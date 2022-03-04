@@ -9,11 +9,13 @@ import java.util.zip.ZipInputStream
 import akka.actor.testkit.typed.scaladsl.ActorTestKit
 import akka.actor.typed.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
+import akka.http.scaladsl.model.StatusCodes.InternalServerError
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import akka.util.ByteString
 import org.scalatest.concurrent.ScalaFutures
 import spray.json._
+import uk.gov.hmrc.nonrep.attachment.TestServices.sampleAttachment
 import uk.gov.hmrc.nonrep.attachment.models.{AttachmentRequest, AttachmentRequestKey}
 import uk.gov.hmrc.nonrep.attachment.server.ServiceConfig
 import uk.gov.hmrc.nonrep.attachment.utils.JsonFormats._
@@ -36,7 +38,7 @@ class StorageSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
 
       val storage = TestServices.success.successfulStorage
 
-      val result = storage.createBundle(attachmentRequestKey, ByteString(TestServices.sampleAttachment))
+      val result = storage.createBundle(attachmentRequestKey, ByteString(sampleAttachment))
       val zipFile = Files.createTempFile(attachmentId, "zip")
       Files.write(zipFile, result.toArray[Byte])
       val zip = new ZipInputStream(new FileInputStream(zipFile.toFile))
@@ -57,7 +59,26 @@ class StorageSpec extends BaseSpec with ScalaFutures with ScalatestRouteTest {
       val metadata = new String(content.find(_._1 == METADATA_FILE).head._2, "utf-8").parseJson.convertTo[AttachmentRequest]
 
       metadata shouldBe request
-      content.find(_._1 == ATTACHMENT_FILE).head._2 shouldBe TestServices.sampleAttachment
+      content.find(_._1 == ATTACHMENT_FILE).head._2 shouldBe sampleAttachment
+    }
+
+    "upload bundle to S3" in {
+      val storage = TestServices.success.successfulStorage
+
+      whenReady(storage.uploadBundle(attachmentRequestKey, ByteString(sampleAttachment))) { result =>
+        result.isRight shouldBe true
+        result.toOption.get shouldBe attachmentRequestKey
+      }
+    }
+
+    "report on upload failure" in {
+      val storage = TestServices.failure.failingStorage
+
+      whenReady(storage.uploadBundle(attachmentRequestKey, ByteString(sampleAttachment))) { result =>
+        result.isLeft shouldBe true
+        result.left.toOption.get.code shouldBe InternalServerError
+        result.left.toOption.get.message shouldBe "Error 'failure' received from S3 downstream service"
+      }
     }
 
     "make communication with S3 via request-call-response pattern" in {

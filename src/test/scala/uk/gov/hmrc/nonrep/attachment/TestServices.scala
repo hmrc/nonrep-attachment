@@ -7,7 +7,8 @@ import akka.actor.testkit.typed.scaladsl.ActorTestKit
 import akka.actor.typed.ActorSystem
 import akka.http.scaladsl.model.StatusCodes.{InternalServerError, OK}
 import akka.http.scaladsl.model._
-import akka.stream.scaladsl.Flow
+import akka.stream.alpakka.s3.MultipartUploadResult
+import akka.stream.scaladsl.{Flow, Keep, Sink}
 import akka.util.ByteString
 import uk.gov.hmrc.nonrep.attachment.models.AttachmentRequestKey
 import uk.gov.hmrc.nonrep.attachment.server.ServiceConfig
@@ -38,7 +39,13 @@ object TestServices extends TestConfigUtils {
 
   object success {
 
-    implicit val successfulStorage: Storage[AttachmentRequestKey] = new StorageService() {
+    implicit val successfulStorage: Storage[AttachmentRequestKey] = new Storage[AttachmentRequestKey]() {
+
+      override def createBundle(data: AttachmentRequestKey, file: ByteString)(
+        implicit system: ActorSystem[_],
+        config: ServiceConfig): ByteString =
+        Storage.defaultStorageService.createBundle(data, file)(system, config)
+
       override def call()(implicit system: ActorSystem[_], config: ServiceConfig)
         : Flow[(HttpRequest, EitherErr[AttachmentRequestKey]), (Try[HttpResponse], EitherErr[AttachmentRequestKey]), Any] =
         Flow[(HttpRequest, EitherErr[AttachmentRequestKey])].map {
@@ -55,7 +62,6 @@ object TestServices extends TestConfigUtils {
       override def uploadBundle(attachment: AttachmentRequestKey, file: ByteString)(
         implicit system: ActorSystem[_],
         config: ServiceConfig): Future[EitherErr[AttachmentRequestKey]] = Future.successful(Right(attachment))
-
     }
 
     implicit val successfulIndexing: Indexing[AttachmentRequestKey] = new Indexing[AttachmentRequestKey]() {
@@ -97,11 +103,17 @@ object TestServices extends TestConfigUtils {
         implicit system: ActorSystem[_]): Future[EitherErr[(AttachmentRequestKey, ByteString)]] =
         Future.successful(Left(ErrorMessage("S3 download error")))
 
-      override def uploadBundle(attachment: AttachmentRequestKey, file: ByteString)(
+      override def uploadSink(attachmentId: String, checksum: String)(
         implicit system: ActorSystem[_],
-        config: ServiceConfig): Future[EitherErr[AttachmentRequestKey]] =
-        Future.successful(Left(ErrorMessage("S3 upload error", InternalServerError)))
-
+        config: ServiceConfig): Sink[ByteString, Future[MultipartUploadResult]] =
+        Sink
+          .fromMaterializer((_, _) => {
+            Flow
+              .fromFunction((_: ByteString) => MultipartUploadResult(Uri(), config.attachmentsBucket, testAttachmentId, "", None))
+              .toMat(Sink.head)(Keep.right)
+          })
+          .mapMaterializedValue(
+            _.flatten.flatMap(_ => Future.failed[MultipartUploadResult](new RuntimeException("failure")))(system.executionContext))
     }
 
     implicit val indexingWithUpstreamFailureAndParsingError: Indexing[AttachmentRequestKey] = new Indexing[AttachmentRequestKey]() {
