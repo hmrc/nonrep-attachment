@@ -6,7 +6,8 @@ import akka.actor.typed.scaladsl.adapter._
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.ContentTypes.`application/json`
 import akka.http.scaladsl.model.HttpMethods.POST
-import akka.http.scaladsl.model.{HttpRequest, HttpResponse, StatusCodes}
+import akka.http.scaladsl.model.StatusCodes.{Accepted, BadRequest, OK}
+import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import org.scalatest.Inside
 import org.scalatest.concurrent.ScalaFutures
@@ -51,7 +52,7 @@ class ServiceIntSpec extends BaseSpec with ScalatestRouteTest with ScalaFutures 
     "return version information for GET request to service /version endpoint" in {
       val responseFuture: Future[HttpResponse] = Http().singleRequest(HttpRequest(uri = s"$hostUrl/${config.appName}/version"))
       whenReady(responseFuture) { res =>
-        res.status shouldBe StatusCodes.OK
+        res.status shouldBe OK
         whenReady(entityToString(res.entity)) { body =>
           body shouldBe buildVersionJsonFormat.write(BuildVersion(version = BuildInfo.version)).toString
         }
@@ -61,7 +62,7 @@ class ServiceIntSpec extends BaseSpec with ScalatestRouteTest with ScalaFutures 
     "return a 'pong' response for GET requests to service /ping endpoint" in {
       val responseFuture: Future[HttpResponse] = Http().singleRequest(HttpRequest(uri = s"$hostUrl/${config.appName}/ping"))
       whenReady(responseFuture) { res =>
-        res.status shouldBe StatusCodes.OK
+        res.status shouldBe OK
         whenReady(entityToString(res.entity)) { body =>
           body shouldBe "pong"
         }
@@ -71,7 +72,7 @@ class ServiceIntSpec extends BaseSpec with ScalatestRouteTest with ScalaFutures 
     "return a 'pong' response for GET requests to /ping endpoint" in {
       val responseFuture: Future[HttpResponse] = Http().singleRequest(HttpRequest(uri = s"$hostUrl/ping"))
       whenReady(responseFuture) { res =>
-        res.status shouldBe StatusCodes.OK
+        res.status shouldBe OK
         whenReady(entityToString(res.entity)) { body =>
           body shouldBe "pong"
         }
@@ -86,28 +87,28 @@ class ServiceIntSpec extends BaseSpec with ScalatestRouteTest with ScalaFutures 
 
       val responseFuture: Future[HttpResponse] = Http().singleRequest(request)
       whenReady(responseFuture) { res =>
-        res.status shouldBe StatusCodes.Accepted
+        res.status shouldBe Accepted
         whenReady(entityToString(res.entity)) { body =>
           body shouldBe AttachmentResponse(attachmentId).toJson.toString
         }
       }
     }
 
-    "return 400 status code for POST request to /attachment with lack of attachments data in meta-store" in {
+    "return 400 status code for POST request to /attachment with an invalid request" in {
       val request = HttpRequest(POST, uri = s"$hostUrl/attachment")
         .withHeaders(apiKeyHeader)
         .withEntity(`application/json`, invalidAttachmentRequestJson)
 
       val responseFuture: Future[HttpResponse] = Http().singleRequest(request)
       whenReady(responseFuture) { res =>
-        res.status shouldBe StatusCodes.BadRequest
+        res.status shouldBe BadRequest
       }
     }
 
     "return jvm metrics" in {
       val responseFuture: Future[HttpResponse] = Http().singleRequest(HttpRequest(uri = s"$hostUrl/metrics"))
       whenReady(responseFuture) { res =>
-        res.status shouldBe StatusCodes.OK
+        res.status shouldBe OK
         whenReady(entityToString(res.entity)) { body =>
           body
             .split('\n')
@@ -178,7 +179,7 @@ class ServiceIntSpec extends BaseSpec with ScalatestRouteTest with ScalaFutures 
     "return metrics" in {
       val responseFuture: Future[HttpResponse] = Http().singleRequest(HttpRequest(uri = s"$hostUrl/metrics"))
       whenReady(responseFuture) { res =>
-        res.status shouldBe StatusCodes.OK
+        res.status shouldBe OK
         whenReady(entityToString(res.entity)) { body =>
           body
             .split('\n')
