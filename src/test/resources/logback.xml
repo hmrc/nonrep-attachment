@@ -2,7 +2,7 @@
 <configuration>
     <appender name="jsonConsoleAppender" class="ch.qos.logback.core.ConsoleAppender">
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
-            <customFields>{"appname":"attachment", "env":"${ENV}"}</customFields>
+            <customFields>{"appname":"attachment", "env":"local"}</customFields>
         </encoder>
     </appender>
 
@@ -13,5 +13,4 @@
     <property name="LOG_LEVEL" value="${log.level:-INFO}" />
 
     <logger name="uk.gov" level="${LOG_LEVEL}" />
-
 </configuration>
