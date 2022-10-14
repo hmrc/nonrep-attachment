@@ -3,7 +3,6 @@ package service
 
 import java.io.ByteArrayInputStream
 import java.net.URI
-
 import akka.actor.typed.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
@@ -11,7 +10,7 @@ import akka.http.scaladsl.model.headers.RawHeader
 import akka.stream.scaladsl.Flow
 import akka.util.ByteString
 import org.apache.http.client.utils.URIBuilder
-import software.amazon.awssdk.auth.credentials.{AwsCredentialsProvider, DefaultCredentialsProvider}
+import software.amazon.awssdk.auth.credentials.{AwsCredentialsProvider, InstanceProfileCredentialsProvider}
 import software.amazon.awssdk.auth.signer.{Aws4Signer, AwsSignerExecutionAttribute}
 import software.amazon.awssdk.core.interceptor.ExecutionAttributes
 import software.amazon.awssdk.http.{SdkHttpFullRequest, SdkHttpMethod}
@@ -66,9 +65,12 @@ class IndexingService extends Indexing[AttachmentRequestKey] {
         .map(_.filterOrElse(_._1.hits.total == 1, ErrorMessage("Invalid nrSubmissionId"))
           .flatMap(response => value.map((_, response._2))))
     } else {
+      val responseBody =     response.entity.dataBytes.runFold(ByteString.empty)(_ ++ _).map(_.utf8String)(system.executionContext)
+
+      system.log.info(s"Response status [${response.status}] received rom ES server for request: Full response body is: [$responseBody]")
       system.log.error(s"Response status [${response.status}] received rom ES server for request: [$value]. Full response is: [$response]")
       val error = ErrorMessage(s"Response status '${response.status}' from ES server", StatusCodes.InternalServerError)
-      response.discardEntityBytes()
+//      response.discardEntityBytes()
       Future.successful(Left(error))
     }
 
@@ -84,12 +86,15 @@ object Indexing {
 object RequestsSigner {
   private lazy val signer = Aws4Signer.create()
 
+  /*
+    InstanceProfileCredentialsProvider.builder() change means this code can not be run on local machines
+   */
   def createSignedRequest(
     method: HttpMethod,
     uri: URI,
     path: String,
     body: String,
-    credsProvider: AwsCredentialsProvider = DefaultCredentialsProvider.create()): HttpRequest = {
+    credsProvider: AwsCredentialsProvider = InstanceProfileCredentialsProvider.builder().asyncCredentialUpdateEnabled(true).build()): HttpRequest = {
 
     import scala.jdk.CollectionConverters._
 
