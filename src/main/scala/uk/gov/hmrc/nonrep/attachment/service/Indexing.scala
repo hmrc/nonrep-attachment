@@ -86,6 +86,9 @@ object Indexing {
 object RequestsSigner {
   private lazy val signer = Aws4Signer.create()
 
+  /*
+    InstanceProfileCredentialsProvider.builder() change means this code can not be run on local machines
+   */
   def createSignedRequest(
     method: HttpMethod,
     uri: URI,
