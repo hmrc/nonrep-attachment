@@ -10,7 +10,7 @@ import akka.http.scaladsl.model.headers.RawHeader
 import akka.stream.scaladsl.Flow
 import akka.util.ByteString
 import org.apache.http.client.utils.URIBuilder
-import software.amazon.awssdk.auth.credentials.{AwsCredentialsProvider, DefaultCredentialsProvider, InstanceProfileCredentialsProvider}
+import software.amazon.awssdk.auth.credentials.{AwsCredentialsProvider, InstanceProfileCredentialsProvider}
 import software.amazon.awssdk.auth.signer.{Aws4Signer, AwsSignerExecutionAttribute}
 import software.amazon.awssdk.core.interceptor.ExecutionAttributes
 import software.amazon.awssdk.http.{SdkHttpFullRequest, SdkHttpMethod}
