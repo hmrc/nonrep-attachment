@@ -3,6 +3,7 @@ package service
 
 import java.io.ByteArrayInputStream
 import java.net.URI
+
 import akka.actor.typed.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
@@ -10,7 +11,7 @@ import akka.http.scaladsl.model.headers.RawHeader
 import akka.stream.scaladsl.Flow
 import akka.util.ByteString
 import org.apache.http.client.utils.URIBuilder
-import software.amazon.awssdk.auth.credentials.{AwsCredentialsProvider, InstanceProfileCredentialsProvider}
+import software.amazon.awssdk.auth.credentials.{AwsCredentialsProvider, DefaultCredentialsProvider}
 import software.amazon.awssdk.auth.signer.{Aws4Signer, AwsSignerExecutionAttribute}
 import software.amazon.awssdk.core.interceptor.ExecutionAttributes
 import software.amazon.awssdk.http.{SdkHttpFullRequest, SdkHttpMethod}
@@ -86,15 +87,12 @@ object Indexing {
 object RequestsSigner {
   private lazy val signer = Aws4Signer.create()
 
-  /*
-    InstanceProfileCredentialsProvider.builder() change means this code can not be run on local machines
-   */
   def createSignedRequest(
     method: HttpMethod,
     uri: URI,
     path: String,
     body: String,
-    credsProvider: AwsCredentialsProvider = InstanceProfileCredentialsProvider.builder().asyncCredentialUpdateEnabled(true).build()): HttpRequest = {
+    credsProvider: AwsCredentialsProvider = DefaultCredentialsProvider.create()): HttpRequest = {
 
     import scala.jdk.CollectionConverters._
 
